@@ -1,7 +1,7 @@
 # Netwatch TUI (netwatchpy)
 
 [![PyPI Version](https://img.shields.io/pypi/v/netwatchpy.svg)](https://pypi.org/project/netwatchpy/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 A TUI (Text-based User Interface) for monitoring network usage in real-time, with support for data limits and desktop notifications.
 
