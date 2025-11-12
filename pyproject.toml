@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netwatchpy"
+version = "0.1.1"
+authors = [
+    { name = "Pranav Kishan", email = "ty.pranavkishan7905@gmail.com" }
+]
+description = "A TUI network usage monitor."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+dependencies = [
+    "textual",
+    "psutil",
+    "desktop-notifier"
+]
+
+[project.scripts]
+netwatch = "netwatch.tui:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["netwatch"]
