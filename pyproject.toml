@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netwatchpy"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
     { name = "Pranav Kishan", email = "ty.pranavkishan7905@gmail.com" }
 ]
@@ -25,3 +25,7 @@ netwatch = "netwatch.tui:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["netwatch"]
+
+[project.urls]
+Homepage = "https://github.com/Destroyer795/Netwatchpy-package"
+Issues = "https://github.com/Destroyer795/Netwatchpy-package/issues"
