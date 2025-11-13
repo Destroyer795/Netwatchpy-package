@@ -6,8 +6,9 @@
 A TUI (Text-based User Interface) for monitoring network usage in real-time, with support for data limits and desktop notifications.
 
 ---
-
+<p align="center">
 <img width="800" height="500" alt="netwatch_demo" src="./assets/netwatch_demo.png" />
+</p>
 
 ---
 
