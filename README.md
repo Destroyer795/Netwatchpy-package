@@ -2,10 +2,6 @@
 
 [![PyPI Version](https://img.shields.io/pypi/v/netwatchpy.svg)](https://pypi.org/project/netwatchpy/)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-# Netwatch TUI (netwatchpy)
-
-[![PyPI Version](https://img.shields.io/pypi/v/netwatchpy.svg)](https://pypi.org/project/netwatchpy/)
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 A TUI (Text-based User Interface) for monitoring network usage in real-time, with support for data limits and desktop notifications.
 
@@ -35,27 +31,19 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 pip install netwatchpy
 ```
 ---
-```
----
 
-## Usage
 ## Usage
 
 Once installed, the netwatch command will be available in your terminal.
 
 **To start the monitor (monitors all interfaces):**
-**To start the monitor (monitors all interfaces):**
 
-```bash
 ```bash
 netwatch
 ```
-```
 
 **To see all available options and help:**
-**To see all available options and help:**
 
-```bash
 ```bash
 netwatch --help
 ```
@@ -87,43 +75,11 @@ You can control the monitor with these arguments:
 **Set a 10GB data limit:**
 
 ```bash
-```
----
-## Command-Line Arguments
-
-You can control the monitor with these arguments:
-
-*   **`-h`,` --help`**
-    
-    *   Shows the help message and all options.
-        
-*   **`-i INTERFACE`,` --interface INTERFACE`**
-    
-    *   Monitors a single, specific network interface (e.g., -i "Wi-Fi"). Defaults to "all".
-        
-*   **`-l LIMIT`,` --limit LIMIT`**
-    
-    *   Sets a data cap and shows a progress bar (e.g., -l "10GB" or -l "500MB").
-        
-*   **`--log LOG`**
-    
-    *   Saves all network activity to a specified CSV file (e.g., --log "usage.csv").
-        
----
-
-### Examples
-
-**Set a 10GB data limit:**
-
-```bash
 netwatch -l "10GB"
 ```
-```
 
 **Monitor a specific interface ("Wi-Fi") and log to a file:**
-**Monitor a specific interface ("Wi-Fi") and log to a file:**
 
-```bash
 ```bash
 netwatch -i "Wi-Fi" --log "my_usage.csv"
 ```
