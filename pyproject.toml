@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netwatchpy"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
     { name = "Pranav Kishan", email = "ty.pranavkishan7905@gmail.com" }
 ]
@@ -16,7 +16,8 @@ license = { text = "MIT" }
 dependencies = [
     "textual",
     "psutil",
-    "desktop-notifier"
+    "desktop-notifier",
+    "platformdirs"
 ]
 
 [project.scripts]

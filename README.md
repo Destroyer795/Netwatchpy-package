@@ -7,7 +7,7 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 
 ---
 <p align="center">
-<img width="800" height="500" alt="netwatch_demo" src="https://raw.githubusercontent.com/Destroyer795/Netwatchpy-package/refs/heads/main/assets/netwatch_demo.png?token=GHSAT0AAAAAADF6A2CN2SETAEBZQ3A75BRA2IV6U7A" />
+<img width="800" height="500" alt="netwatch_demo" src="/assets/netwatch_demo.png" />
 </p>
 
 ---
