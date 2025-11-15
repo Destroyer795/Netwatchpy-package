@@ -7,7 +7,7 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 
 ---
 <p align="center">
-<img width="800" height="500" alt="netwatch_demo" src="/assets/netwatch_demo.png" />
+<img width="800" height="500" alt="netwatch_demo" src="/assets/demo.png" />
 </p>
 
 ---
@@ -15,6 +15,8 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 ## Features
 
 * **Real-time Dashboard:** A clean, terminal-based dashboard showing total download, upload, and current speeds.
+* **Persistent Quota:** Automatically saves your total usage, so you can track a monthly data cap across multiple sessions.
+
 * **Data Cap Monitoring:** Set a data limit (e.g., `10GB`) and see your usage on a real-time progress bar.
 * **Desktop Notifications:** Get native desktop notifications when you hit 80% and 100% of your data limit.
 * **Live Activity Log:** An interactive, scrolling log of all network activity, updated every second.
@@ -87,13 +89,15 @@ netwatch -i "Wi-Fi" --log "my_usage.csv"
 ---
 ### In-App Keybindings
 
-*   **`Ctrl+P`**: Open the Command Palette
+*   **`Ctrl+p`**: Open the Command Palette
     
-*   **`Ctrl+D`**: Toggle Dark / Light Mode
+*   **`Ctrl+d`**: Toggle Dark / Light Mode
+
+*   **`Ctrl+s`**: Toggle Dark / Light Mode
     
 *   **`r`**: Reset all counters back to zero
     
-*   **`Ctrl+Q`**: Quit the application
+*   **`Ctrl+q`**: Quit the application
     
 ---
 
