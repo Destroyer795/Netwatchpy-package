@@ -7,7 +7,7 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 
 ---
 <p align="center">
-<img width="800" height="500" alt="netwatch_demo" src="https://raw.githubusercontent.com/Destroyer795/Netwatchpy-package/refs/heads/main/assets/demo.png?token=GHSAT0AAAAAADF6A2CNVQROSXZTHRYTSYAC2IYL4HQ" />
+<img width="800" height="500" alt="netwatch_demo" src="/assets/demo.png" />
 </p>
 
 ---
@@ -28,7 +28,7 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 
 ## Installation
 
-All you need is Python 3.8+ and `pip` to install netwatchpy in your system.
+`netwatchpy` is available on PyPI. All you need is Python 3.8+ and `pip`.
 
 ```bash
 pip install netwatchpy
