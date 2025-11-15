@@ -105,7 +105,7 @@ class NetMonitorTUI(App):
         self.alert_100_sent = False
 
         # Persistent storage location
-        self.config_dir = user_config_dir("netwatchpy", "Pranav")
+        self.config_dir = user_config_dir("netwatchpy")
         self.quota_file = os.path.join(self.config_dir, "quota.json")
 
     def _load_persistent_quota(self):
@@ -178,7 +178,6 @@ class NetMonitorTUI(App):
         self.total_download = down
         self.total_usage = up + down
 
-        # Updating bar immediately
         if self.limit_bytes:
             try:
                 bar = self.query_one(ProgressBar)
@@ -220,7 +219,7 @@ class NetMonitorTUI(App):
 
     def _autosave_job(self):
         """Called every 10 seconds."""
-        if self._save_lock.acquire(timeout=0.1): # Don't wait long
+        if self._save_lock.acquire(timeout=0.1):
             try:
                 self._save_persistent_quota()
             finally:
