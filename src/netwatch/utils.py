@@ -24,7 +24,6 @@ def parse_limit(size_str):
     if s.endswith("KB"):
         return int(float(s[:-2]) * 1024)
 
-    # fallback: maybe a plain number
     try:
         return int(float(s))
     except ValueError:

@@ -3,7 +3,7 @@ import threading
 from datetime import datetime
 import csv
 from .utils import get_size
-
+from .db import log_traffic
 
 class NetworkMonitorThread(threading.Thread):
     def __init__(self, callback, interface="all", log_file=None,
@@ -18,6 +18,7 @@ class NetworkMonitorThread(threading.Thread):
 
         self.total_up = int(initial_upload)
         self.total_down = int(initial_download)
+        
         if self.log_file:
             try:
                 file_exists = False
@@ -77,6 +78,11 @@ class NetworkMonitorThread(threading.Thread):
 
                 up = max(0, int(up))
                 down = max(0, int(down))
+
+                try:
+                    log_traffic(up, down)
+                except Exception:
+                    pass
 
                 self.total_up += up
                 self.total_down += down

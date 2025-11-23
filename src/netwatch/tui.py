@@ -1,20 +1,17 @@
 import argparse
-import json
-import os
 import sys
 from textwrap import dedent
-from platformdirs import user_config_dir
 
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll, Horizontal, Container
 from textual.widgets import Header, Footer, DataTable, ProgressBar, Static
 from textual.reactive import var
+from textual.css.query import NoMatches
 from desktop_notifier import DesktopNotifier
 
 from .utils import get_size, parse_limit
 from .monitor import NetworkMonitorThread
-
-
+from .db import init_db, get_historical_totals, clear_history
 
 class NetMonitorTUI(App):
     TITLE = "Network Usage Monitor"
@@ -24,7 +21,7 @@ class NetMonitorTUI(App):
         ("ctrl+p", "command_palette", "Command Palette"),
         ("ctrl+d", "toggle_dark", "Toggle Dark Mode"),
         ("r", "reset_counters", "Reset Counters"),
-        ("ctrl+s", "save_quota", "Save Quota"),
+        ("ctrl+s", "save_quota", "Force Save (Auto-saved)"), 
         ("ctrl+q", "quit", "Quit"),
     ]
 
@@ -55,21 +52,17 @@ class NetMonitorTUI(App):
             height: 1fr;
             margin: 0 1;
             border: solid black;
-            background: white; /* Light mode background */
-            color: black;      /* Light mode text */
+            background: white;
+            color: black;
         }
         .-dark-mode #stats_table {
             border: solid #666;
-            background: #222; /* Dark mode background */
-            color: #e0e0e0;   /* Dark mode text */
+            background: #222;
+            color: #e0e0e0;
         }
         
-        ProgressBar {
-            background: #e8e8e8; /* Light mode track */
-        }
-        .-dark-mode ProgressBar {
-            background: #222; /* Dark mode track */
-        }
+        ProgressBar { background: #e8e8e8; }
+        .-dark-mode ProgressBar { background: #222; }
 
         ProgressBar > .progress-bar--bar { background: #007acc; }
         .-dark-mode ProgressBar > .progress-bar--bar { background: #55aaff; }
@@ -82,7 +75,6 @@ class NetMonitorTUI(App):
         }
     """)
 
-    # Reactive vars (auto update UI)
     total_upload = var(0)
     total_download = var(0)
     total_usage = var(0)
@@ -99,47 +91,12 @@ class NetMonitorTUI(App):
 
         self.notifier = DesktopNotifier(app_name="Netwatch")
         self.monitor_thread = None
-        self._save_lock = None # added in on_mount
         
         self.alert_80_sent = False
         self.alert_100_sent = False
 
-        # Persistent storage location
-        self.config_dir = user_config_dir("netwatchpy")
-        self.quota_file = os.path.join(self.config_dir, "quota.json")
-
-    def _load_persistent_quota(self):
-        try:
-            with open(self.quota_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return (
-                int(data.get("total_upload", 0)),
-                int(data.get("total_download", 0)),
-            )
-        except Exception:
-            return 0, 0
-
-    def _save_persistent_quota(self):
-        """Safe atomic save of totals."""
-        try:
-            os.makedirs(self.config_dir, exist_ok=True)
-
-            payload = {
-                "total_upload": int(self.total_upload),
-                "total_download": int(self.total_download),
-            }
-
-            tmp = self.quota_file + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-
-            os.replace(tmp, self.quota_file)
-        except Exception as e:
-            print(f"[netwatch save error] {e}", file=sys.stderr)
-
     def compose(self) -> ComposeResult:
         yield Header()
-
         with VerticalScroll(id="main_container"):
             with Horizontal(id="summary_cards"):
                 yield Static("Total Download\n[b]0.00 B[/b]", id="total-dl-card", classes="summary_card")
@@ -155,13 +112,25 @@ class NetMonitorTUI(App):
 
             yield Static(id="error_box")
             yield DataTable(id="stats_table")
-
         yield Footer()
+
+    def _log_event(self, message: str):
+        """Writes a timestamped event message to the log file."""
+        if self.log_file:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(self.log_file, "a") as f:
+                f.write(f"[{timestamp}] [EVENT] {message}\n")
 
     def on_mount(self):
         """Executed when TUI is ready."""
-        from threading import Lock
-        self._save_lock = Lock()
+        self._log_event("Monitoring session started.")
+        init_db()
+        up, down = get_historical_totals()
+        
+        self.total_upload = up
+        self.total_download = down
+        self.total_usage = up + down
 
         # Build table
         table = self.query_one(DataTable)
@@ -172,12 +141,6 @@ class NetMonitorTUI(App):
         table.add_column("Total Down")
         table.add_column("Total Usage")
 
-        # Load saved totals before thread start
-        up, down = self._load_persistent_quota()
-        self.total_upload = up
-        self.total_download = down
-        self.total_usage = up + down
-
         if self.limit_bytes:
             try:
                 bar = self.query_one(ProgressBar)
@@ -185,9 +148,7 @@ class NetMonitorTUI(App):
             except Exception:
                 pass
 
-        # Start autosave (every 10 seconds)
-        self.set_interval(10, self._autosave_job)
-
+        # Start monitoring thread
         self.monitor_thread = NetworkMonitorThread(
             self.on_data_update,
             interface=self.interface,
@@ -198,41 +159,22 @@ class NetMonitorTUI(App):
         self.monitor_thread.start()
 
     def on_exit(self):
-        """
-        Stop the thread, then do a final save.
-        """
+        """Stop the thread nicely."""
         if self.monitor_thread:
+            self._log_event("Monitoring session ended.")
             self.monitor_thread.stop()
             self.monitor_thread.join(timeout=1.5)
-        
-        print("\n[netwatch] Quitting... saving final quota.")
-        if self._save_lock.acquire(timeout=2.0):
-            try:
-                self._save_persistent_quota()
-                print("[netwatch] Final save complete.")
-            except Exception as e:
-                print(f"[netwatch] Final save failed: {e}", file=sys.stderr)
-            finally:
-                self._save_lock.release()
-        else:
-            print("[netwatch] Could not acquire lock, final save skipped.", file=sys.stderr)
-
-    def _autosave_job(self):
-        """Called every 10 seconds."""
-        if self._save_lock.acquire(timeout=0.1):
-            try:
-                self._save_persistent_quota()
-            finally:
-                self._save_lock.release()
 
     def on_data_update(self, data: dict):
         self.call_from_thread(self._process_data_packet, data)
 
     def _process_data_packet(self, data: dict):
         if "error" in data:
+            error_message = "ERROR: " + data["error"]
             box = self.query_one("#error_box")
-            box.update("ERROR: " + data["error"])
+            box.update(error_message)
             box.styles.display = "block"
+            self._log_event(error_message)
             return
 
         if "timestamp" not in data:
@@ -260,49 +202,59 @@ class NetMonitorTUI(App):
             table.remove_row(first_key)
 
     def watch_total_download(self, new):
-        self.query_one("#total-dl-card").update(
-            f"Total Download\n[b]{get_size(new)}[/b]"
-        )
+        try:
+            self.query_one("#total-dl-card").update(
+                f"Total Download\n[b]{get_size(new)}[/b]"
+            )
+        except NoMatches:
+            pass
 
     def watch_total_upload(self, new):
-        self.query_one("#total-ul-card").update(
-            f"Total Upload\n[b]{get_size(new)}[/b]"
-        )
+        try:
+            self.query_one("#total-ul-card").update(
+                f"Total Upload\n[b]{get_size(new)}[/b]"
+            )
+        except NoMatches:
+            pass
 
     async def watch_total_usage(self, new_total_usage: int):
-        self.query_one("#total-usage-card").update(
-            f"Total Usage\n[b]{get_size(new_total_usage)}[/b]"
-        )
-        
-        if self.limit_bytes:
-            bar = self.query_one(ProgressBar)
-            bar.progress = new_total_usage
+        try:
+            self.query_one("#total-usage-card").update(
+                f"Total Usage\n[b]{get_size(new_total_usage)}[/b]"
+            )
+            
+            if self.limit_bytes:
+                bar = self.query_one(ProgressBar)
+                bar.progress = new_total_usage
 
-            # 80% warning
-            if new_total_usage >= 0.8 * self.limit_bytes and not self.alert_80_sent:
-                self.alert_80_sent = True
-                bar.styles.color = "yellow"
-                self.sub_title = "⚠️ 80% of limit reached!"
-                try:
-                    await self.notifier.send(
-                        title="Netwatch: 80% Usage Warning",
-                        message=f"You have used {get_size(new_total_usage)} of your {get_size(self.limit_bytes)} limit."
-                    )
-                except Exception as e:
-                    print(f"[Notification Error] {e}", file=sys.stderr) # Log to stderr
+                # 80% warning
+                if new_total_usage >= 0.8 * self.limit_bytes and not self.alert_80_sent:
+                    self.alert_80_sent = True
+                    bar.styles.color = "yellow"
+                    self.sub_title = "⚠️ 80% of limit reached!"
+                    try:
+                        await self.notifier.send(
+                            title="Netwatch: 80% Usage Warning",
+                            message=f"You have used {get_size(new_total_usage)}."
+                        )
+                    except Exception as e:
+                        print(f"[Notification Error] {e}", file=sys.stderr)
 
-            # 100% alert
-            if new_total_usage >= self.limit_bytes and not self.alert_100_sent:
-                self.alert_100_sent = True
-                bar.styles.color = "red"
-                self.sub_title = "🚨 Data limit exceeded!"
-                try:
-                    await self.notifier.send(
-                        title="Netwatch: Data Limit Exceeded!",
-                        message=f"You have exceeded your {get_size(self.limit_bytes)} data limit."
-                    )
-                except Exception as e:
-                    print(f"[Notification Error] {e}", file=sys.stderr) # Log to stderr
+                # 100% alert
+                if new_total_usage >= self.limit_bytes and not self.alert_100_sent:
+                    self.alert_100_sent = True
+                    bar.styles.color = "red"
+                    self.sub_title = "🚨 Data limit exceeded!"
+                    try:
+                        await self.notifier.send(
+                            title="Netwatch: Data Limit Exceeded!",
+                            message=f"You have exceeded your {get_size(self.limit_bytes)} data limit."
+                        )
+                    except Exception as e:
+                        print(f"[Notification Error] {e}", file=sys.stderr)
+                        
+        except NoMatches:
+            pass
 
     def action_toggle_dark(self):
         self.dark = not self.dark
@@ -310,27 +262,21 @@ class NetMonitorTUI(App):
         self.sub_title = "🌙 Dark Mode" if self.dark else "☀️ Light Mode"
 
     def action_reset_counters(self):
-        """Resets all counters to 0 and saves this reset."""
+        """Resets all counters to 0 and clears DB."""
         if self.monitor_thread:
             self.monitor_thread.stop()
             self.monitor_thread.join(timeout=1)
 
+        clear_history()
+        self._log_event("Counters reset by user.")
+
         self.total_upload = 0
         self.total_download = 0
         self.total_usage = 0
-        self.sub_title = "Quota Reset to 0"
-
+        self.sub_title = "History Cleared"
         self.alert_80_sent = False
         self.alert_100_sent = False
 
-        # get lock to save the reset
-        if self._save_lock.acquire(timeout=1.0):
-            try:
-                self._save_persistent_quota()
-            finally:
-                self._save_lock.release()
-
-        # Restart fresh thread
         self.monitor_thread = NetworkMonitorThread(
             self.on_data_update,
             interface=self.interface,
@@ -341,15 +287,8 @@ class NetMonitorTUI(App):
         self.monitor_thread.start()
 
     def action_save_quota(self) -> None:
-        """Manually save the current quota totals."""
-        if self._save_lock.acquire(timeout=0.1):
-            try:
-                self._save_persistent_quota()
-                self.sub_title = "Quota Saved!"
-            finally:
-                self._save_lock.release()
-        else:
-            self.sub_title = "Saving... please wait."
+        """Inform user that saving is automatic."""
+        self.sub_title = "Data is auto-saved to SQLite"
 
 def main():
     parser = argparse.ArgumentParser(description="Network Usage Monitor TUI")
@@ -364,7 +303,6 @@ def main():
         log_file=args.log,
     )
     app.run()
-
 
 if __name__ == "__main__":
     main()
