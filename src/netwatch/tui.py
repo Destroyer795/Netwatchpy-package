@@ -4,14 +4,15 @@ from textwrap import dedent
 
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll, Horizontal, Container
-from textual.widgets import Header, Footer, DataTable, ProgressBar, Static
+from textual.widgets import Header, Footer, DataTable, ProgressBar, Static, TabbedContent, TabPane
 from textual.reactive import var
 from textual.css.query import NoMatches
 from desktop_notifier import DesktopNotifier
 
 from .utils import get_size, parse_limit
 from .monitor import NetworkMonitorThread
-from .db import init_db, get_historical_totals, clear_history
+from .db import init_db, get_historical_totals, clear_history, get_hourly_usage_last_24h
+from .graph import generate_ascii_chart
 
 class NetMonitorTUI(App):
     TITLE = "Network Usage Monitor"
@@ -20,8 +21,9 @@ class NetMonitorTUI(App):
     BINDINGS = [
         ("ctrl+p", "command_palette", "Command Palette"),
         ("ctrl+d", "toggle_dark", "Toggle Dark Mode"),
-        ("r", "reset_counters", "Reset Counters"),
-        ("ctrl+s", "save_quota", "Force Save (Auto-saved)"), 
+        ("r", "refresh_chart", "Refresh Chart"),
+        ("ctrl+r", "reset_counters", "Reset Counters"),
+        ("ctrl+s", "save_quota", "Info: Auto-Saved"),
         ("ctrl+q", "quit", "Quit"),
     ]
 
@@ -73,6 +75,17 @@ class NetMonitorTUI(App):
             color: red;
             display: none;
         }
+        
+        #chart_area {
+            padding: 1 2;
+            height: auto;
+            border: solid #666;
+        }
+        .help-text {
+            text-align: center;
+            padding: 1;
+            color: #888;
+        }
     """)
 
     total_upload = var(0)
@@ -97,34 +110,33 @@ class NetMonitorTUI(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with VerticalScroll(id="main_container"):
-            with Horizontal(id="summary_cards"):
-                yield Static("Total Download\n[b]0.00 B[/b]", id="total-dl-card", classes="summary_card")
-                yield Static("Total Upload\n[b]0.00 B[/b]", id="total-ul-card", classes="summary_card")
-                yield Static("Total Usage\n[b]0.00 B[/b]", id="total-usage-card", classes="summary_card")
+        
+        with TabbedContent(initial="live_tab"):
+            with TabPane("Live Monitor", id="live_tab"):
+                with VerticalScroll(id="main_container"):
+                    with Horizontal(id="summary_cards"):
+                        yield Static("Total Download\n[b]0.00 B[/b]", id="total-dl-card", classes="summary_card")
+                        yield Static("Total Upload\n[b]0.00 B[/b]", id="total-ul-card", classes="summary_card")
+                        yield Static("Total Usage\n[b]0.00 B[/b]", id="total-usage-card", classes="summary_card")
 
-            with Container(id="limit_container"):
-                if self.limit_bytes:
-                    yield Static(f"Usage Limit: {get_size(self.limit_bytes)}")
-                    yield ProgressBar(id="limit_bar", total=self.limit_bytes, show_eta=False)
-                else:
-                    yield Static("Usage Limit: Not Set")
+                    with Container(id="limit_container"):
+                        if self.limit_bytes:
+                            yield Static(f"Usage Limit: {get_size(self.limit_bytes)}")
+                            yield ProgressBar(id="limit_bar", total=self.limit_bytes, show_eta=False)
+                        else:
+                            yield Static("Usage Limit: Not Set")
 
-            yield Static(id="error_box")
-            yield DataTable(id="stats_table")
+                    yield Static(id="error_box")
+                    yield DataTable(id="stats_table")
+
+            with TabPane("History (24h)", id="history_tab"):
+                yield Static("Analyzing database...", id="chart_area")
+                yield Static("\n[b]Press 'R' to refresh data[/b]", classes="help-text")
+        
         yield Footer()
-
-    def _log_event(self, message: str):
-        """Writes a timestamped event message to the log file."""
-        if self.log_file:
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            with open(self.log_file, "a") as f:
-                f.write(f"[{timestamp}] [EVENT] {message}\n")
 
     def on_mount(self):
         """Executed when TUI is ready."""
-        self._log_event("Monitoring session started.")
         init_db()
         up, down = get_historical_totals()
         
@@ -158,10 +170,11 @@ class NetMonitorTUI(App):
         )
         self.monitor_thread.start()
 
+        # Refresh chart on startup
+        self.refresh_chart()
+
     def on_exit(self):
-        """Stop the thread nicely."""
         if self.monitor_thread:
-            self._log_event("Monitoring session ended.")
             self.monitor_thread.stop()
             self.monitor_thread.join(timeout=1.5)
 
@@ -170,11 +183,12 @@ class NetMonitorTUI(App):
 
     def _process_data_packet(self, data: dict):
         if "error" in data:
-            error_message = "ERROR: " + data["error"]
-            box = self.query_one("#error_box")
-            box.update(error_message)
-            box.styles.display = "block"
-            self._log_event(error_message)
+            try:
+                box = self.query_one("#error_box")
+                box.update("ERROR: " + data["error"])
+                box.styles.display = "block"
+            except NoMatches:
+                pass
             return
 
         if "timestamp" not in data:
@@ -186,48 +200,44 @@ class NetMonitorTUI(App):
         self.total_download = data["total_download"]
         self.total_usage = data["total_usage"]
 
-        table = self.query_one(DataTable)
-        table.add_row(
-            data["timestamp"].split(" ")[1],
-            f"{get_size(self.upload_speed)}/s",
-            f"{get_size(self.download_speed)}/s",
-            get_size(self.total_upload),
-            get_size(self.total_download),
-            get_size(self.total_usage),
-        )
-        table.scroll_end(animate=False)
+        try:
+            table = self.query_one(DataTable)
+            table.add_row(
+                data["timestamp"].split(" ")[1],
+                f"{get_size(self.upload_speed)}/s",
+                f"{get_size(self.download_speed)}/s",
+                get_size(self.total_upload),
+                get_size(self.total_download),
+                get_size(self.total_usage),
+            )
+            table.scroll_end(animate=False)
 
-        if table.row_count > 50:
-            first_key = next(iter(table.rows.keys()))
-            table.remove_row(first_key)
+            if table.row_count > 50:
+                first_key = next(iter(table.rows.keys()))
+                table.remove_row(first_key)
+        except NoMatches:
+            pass
 
     def watch_total_download(self, new):
         try:
-            self.query_one("#total-dl-card").update(
-                f"Total Download\n[b]{get_size(new)}[/b]"
-            )
+            self.query_one("#total-dl-card").update(f"Total Download\n[b]{get_size(new)}[/b]")
         except NoMatches:
             pass
 
     def watch_total_upload(self, new):
         try:
-            self.query_one("#total-ul-card").update(
-                f"Total Upload\n[b]{get_size(new)}[/b]"
-            )
+            self.query_one("#total-ul-card").update(f"Total Upload\n[b]{get_size(new)}[/b]")
         except NoMatches:
             pass
 
     async def watch_total_usage(self, new_total_usage: int):
         try:
-            self.query_one("#total-usage-card").update(
-                f"Total Usage\n[b]{get_size(new_total_usage)}[/b]"
-            )
+            self.query_one("#total-usage-card").update(f"Total Usage\n[b]{get_size(new_total_usage)}[/b]")
             
             if self.limit_bytes:
                 bar = self.query_one(ProgressBar)
                 bar.progress = new_total_usage
 
-                # 80% warning
                 if new_total_usage >= 0.8 * self.limit_bytes and not self.alert_80_sent:
                     self.alert_80_sent = True
                     bar.styles.color = "yellow"
@@ -240,7 +250,6 @@ class NetMonitorTUI(App):
                     except Exception as e:
                         print(f"[Notification Error] {e}", file=sys.stderr)
 
-                # 100% alert
                 if new_total_usage >= self.limit_bytes and not self.alert_100_sent:
                     self.alert_100_sent = True
                     bar.styles.color = "red"
@@ -252,9 +261,31 @@ class NetMonitorTUI(App):
                         )
                     except Exception as e:
                         print(f"[Notification Error] {e}", file=sys.stderr)
-                        
         except NoMatches:
             pass
+
+    def on_tabbed_content_tab_activated(self, event):
+        """Auto-refresh when user clicks the History tab."""
+        if event.tab.id == "history_tab":
+            self.refresh_chart()
+
+    def refresh_chart(self):
+        try:
+            data = get_hourly_usage_last_24h()
+            chart_str = generate_ascii_chart(data)
+            self.query_one("#chart_area").update(chart_str)
+        except NoMatches:
+            pass
+        except Exception as e:
+            try:
+                self.query_one("#chart_area").update(f"[red]Error loading chart:\n{e}[/red]")
+            except:
+                pass
+
+    def action_refresh_chart(self):
+        """Called when 'r' is pressed to refresh the chart."""
+        self.sub_title = "Refreshing chart data..."
+        self.refresh_chart()
 
     def action_toggle_dark(self):
         self.dark = not self.dark
@@ -262,13 +293,12 @@ class NetMonitorTUI(App):
         self.sub_title = "🌙 Dark Mode" if self.dark else "☀️ Light Mode"
 
     def action_reset_counters(self):
-        """Resets all counters to 0 and clears DB."""
+        """Resets all counters to 0, clears DB, and refreshes chart."""
         if self.monitor_thread:
             self.monitor_thread.stop()
             self.monitor_thread.join(timeout=1)
 
         clear_history()
-        self._log_event("Counters reset by user.")
 
         self.total_upload = 0
         self.total_download = 0
@@ -276,6 +306,9 @@ class NetMonitorTUI(App):
         self.sub_title = "History Cleared"
         self.alert_80_sent = False
         self.alert_100_sent = False
+        
+        # Refresh chart to show empty state
+        self.refresh_chart()
 
         self.monitor_thread = NetworkMonitorThread(
             self.on_data_update,
@@ -287,8 +320,7 @@ class NetMonitorTUI(App):
         self.monitor_thread.start()
 
     def action_save_quota(self) -> None:
-        """Inform user that saving is automatic."""
-        self.sub_title = "Data is auto-saved to SQLite"
+        self.sub_title = "✅ Data is auto-saved to SQLite"
 
 def main():
     parser = argparse.ArgumentParser(description="Network Usage Monitor TUI")

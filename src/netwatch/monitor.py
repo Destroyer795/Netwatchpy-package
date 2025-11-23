@@ -79,10 +79,13 @@ class NetworkMonitorThread(threading.Thread):
                 up = max(0, int(up))
                 down = max(0, int(down))
 
+                # Persist delta to SQLite with error logging
                 try:
                     log_traffic(up, down)
-                except Exception:
-                    pass
+                except Exception as e:
+                    # Log silently to file to aid debugging without crashing TUI
+                    with open("netwatch_debug.log", "a") as f:
+                        f.write(f"DB Error: {e}\n")
 
                 self.total_up += up
                 self.total_down += down

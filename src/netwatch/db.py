@@ -15,9 +15,11 @@ def _get_conn():
     return sqlite3.connect(DB_FILE, check_same_thread=False)
 
 def init_db():
-    """Initialize the database table and migrate old data if found."""
+    """Initialize the database table, enable WAL, and migrate old data."""
     conn = _get_conn()
     try:
+        conn.execute("PRAGMA journal_mode=WAL;") 
+        
         c = conn.cursor()
         c.execute("""
             CREATE TABLE IF NOT EXISTS usage_log (
@@ -63,9 +65,9 @@ def _migrate_legacy_json():
             finally:
                 conn.close()
 
-        new_name = LEGACY_FILE + ".migrated" # Prevent re-migration
+        new_name = LEGACY_FILE + ".migrated"
         os.rename(LEGACY_FILE, new_name)
-        print(f"[netwatch] Migration successful. Renamed {LEGACY_FILE} to {new_name}")
+        print(f"[netwatch] Migration successful. Renamed to {new_name}")
 
     except Exception as e:
         print(f"[netwatch] Migration failed: {e}")
@@ -84,8 +86,6 @@ def log_traffic(up_delta: int, down_delta: int):
             (ts, int(up_delta), int(down_delta))
         )
         conn.commit()
-    except Exception:
-        pass
     finally:
         conn.close()
 
@@ -105,8 +105,31 @@ def get_historical_totals():
     finally:
         conn.close()
 
+def get_hourly_usage_last_24h():
+    """
+    Returns a list of tuples: (hour_label, upload_bytes, download_bytes)
+    for the last 24 hours. Includes 'localtime' fix for correct grouping.
+    """
+    conn = _get_conn()
+    try:
+        c = conn.cursor()
+        query = """
+            SELECT 
+                strftime('%Y-%m-%d %H:00', timestamp) as hour_bucket,
+                SUM(upload_bytes),
+                SUM(download_bytes)
+            FROM usage_log
+            WHERE timestamp >= datetime('now', 'localtime', '-1 day')
+            GROUP BY hour_bucket
+            ORDER BY hour_bucket ASC
+        """
+        c.execute(query)
+        return c.fetchall()
+    finally:
+        conn.close()
+
 def clear_history():
-    """Remove all historical data."""
+    """Wipe all historical data."""
     conn = _get_conn()
     try:
         c = conn.cursor()
