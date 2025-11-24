@@ -27,7 +27,6 @@ nav:
   - Home: index.md
   - Installation: install.md
   - User Guide: usage.md
-  - Changelog: changelog.md
 
 markdown_extensions:
   - admonition
