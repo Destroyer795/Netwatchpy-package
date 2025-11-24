@@ -1,0 +1,35 @@
+site_name: Netwatch TUI
+site_url: https://destroyer795.github.io/netwatchpy-package/
+repo_url: https://github.com/destroyer795/netwatchpy-package
+repo_name: destroyer795/netwatchpy-package
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette: 
+    - scheme: default
+      primary: teal
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: lime
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - User Guide: usage.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences

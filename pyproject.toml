@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netwatchpy"
-version = "1.1.0"
+version = "1.1.1"
 authors = [
     { name = "Pranav Kishan", email = "ty.pranavkishan7905@gmail.com" }
 ]

@@ -84,6 +84,8 @@ class NetworkMonitorThread(threading.Thread):
                     log_traffic(up, down)
                 except Exception as e:
                     # Log silently to file to aid debugging without crashing TUI
+                    if not self.stop_event.is_set():
+                        self.callback({"error": f"DB Error: {e}"})
                     with open("netwatch_debug.log", "a") as f:
                         f.write(f"DB Error: {e}\n")
 

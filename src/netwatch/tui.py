@@ -1,5 +1,6 @@
 import argparse
 import sys
+import os
 from textwrap import dedent
 
 from textual.app import App, ComposeResult
@@ -23,7 +24,7 @@ class NetMonitorTUI(App):
         ("ctrl+d", "toggle_dark", "Toggle Dark Mode"),
         ("r", "refresh_chart", "Refresh Chart"),
         ("ctrl+r", "reset_counters", "Reset Counters"),
-        ("ctrl+s", "save_quota", "Save Quota"),
+        ("ctrl+s", "save_quota", "Save Status"),
         ("ctrl+q", "quit", "Quit"),
     ]
 
@@ -108,6 +109,28 @@ class NetMonitorTUI(App):
         self.alert_80_sent = False
         self.alert_100_sent = False
 
+    def _log_event(self, message: str):
+        """Writes a timestamped event message to the log file."""
+        if self.log_file:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                with open(self.log_file, "a") as f:
+                    f.write(f"[{timestamp}] [EVENT] {message}\n")
+            except Exception as e:
+                self.query_one("#error_box").update(f"ERROR: Failed to write to log file: {e}")
+
+    def _log_error(self, message: str):
+        """Writes a timestamped error message to the log file."""
+        if self.log_file:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                with open(self.log_file, "a") as f:
+                    f.write(f"[{timestamp}] [ERROR] {message}\n")
+            except Exception as e:
+                self.query_one("#error_box").update(f"ERROR: Failed to write to log file: {e}")
+
     def compose(self) -> ComposeResult:
         yield Header()
         
@@ -137,6 +160,9 @@ class NetMonitorTUI(App):
 
     def on_mount(self):
         """Executed when TUI is ready."""
+        if self.log_file and os.path.exists(self.log_file):
+            self._log_event("SESSION STARTED")
+
         init_db()
         up, down = get_historical_totals()
         
@@ -184,8 +210,10 @@ class NetMonitorTUI(App):
     def _process_data_packet(self, data: dict):
         if "error" in data:
             try:
+                error_message = data["error"]
+                self._log_error(error_message)
                 box = self.query_one("#error_box")
-                box.update("ERROR: " + data["error"])
+                box.update("ERROR: " + error_message)
                 box.styles.display = "block"
             except NoMatches:
                 pass
@@ -238,28 +266,35 @@ class NetMonitorTUI(App):
                 bar = self.query_one(ProgressBar)
                 bar.progress = new_total_usage
 
+                if not self.alert_80_sent and not self.alert_100_sent:
+                    bar.styles.color = "#00c853" if not self.dark else "#64dd17"
+
                 if new_total_usage >= 0.8 * self.limit_bytes and not self.alert_80_sent:
                     self.alert_80_sent = True
                     bar.styles.color = "yellow"
                     self.sub_title = "⚠️ 80% of limit reached!"
+                    self._log_event("80% of data limit reached.")
                     try:
                         await self.notifier.send(
                             title="Netwatch: 80% Usage Warning",
                             message=f"You have used {get_size(new_total_usage)}."
                         )
                     except Exception as e:
+                        self._log_error(f"Failed to send 80% notification: {e}")
                         print(f"[Notification Error] {e}", file=sys.stderr)
 
                 if new_total_usage >= self.limit_bytes and not self.alert_100_sent:
                     self.alert_100_sent = True
                     bar.styles.color = "red"
                     self.sub_title = "🚨 Data limit exceeded!"
+                    self._log_event("100% of data limit reached.")
                     try:
                         await self.notifier.send(
                             title="Netwatch: Data Limit Exceeded!",
                             message=f"You have exceeded your {get_size(self.limit_bytes)} data limit."
                         )
                     except Exception as e:
+                        self._log_error(f"Failed to send 100% notification: {e}")
                         print(f"[Notification Error] {e}", file=sys.stderr)
         except NoMatches:
             pass
@@ -277,6 +312,7 @@ class NetMonitorTUI(App):
         except NoMatches:
             pass
         except Exception as e:
+            self._log_error(f"Error loading chart: {e}")
             try:
                 self.query_one("#chart_area").update(f"[red]Error loading chart:\n{e}[/red]")
             except:
@@ -294,6 +330,7 @@ class NetMonitorTUI(App):
 
     def action_reset_counters(self):
         """Resets all counters to 0, clears DB, and refreshes chart."""
+        self._log_event("Counters reset.")
         if self.monitor_thread:
             self.monitor_thread.stop()
             self.monitor_thread.join(timeout=1)
@@ -307,6 +344,12 @@ class NetMonitorTUI(App):
         self.alert_80_sent = False
         self.alert_100_sent = False
         
+        try:
+            bar = self.query_one(ProgressBar)
+            bar.styles.color = None
+        except NoMatches:
+            pass
+
         # Refresh chart to show empty state
         self.refresh_chart()
 
@@ -323,10 +366,24 @@ class NetMonitorTUI(App):
         self.sub_title = "✅ Data is auto-saved to SQLite"
 
 def main():
-    parser = argparse.ArgumentParser(description="Network Usage Monitor TUI")
-    parser.add_argument("-i", "--interface", default="all")
-    parser.add_argument("-l", "--limit")
-    parser.add_argument("--log")
+    parser = argparse.ArgumentParser(
+        description="A TUI-based network usage monitor.",
+        formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=35, width=100)
+    )
+    parser.add_argument(
+        "-i", "--interface", 
+        default="all",
+        help="Network interface to monitor (e.g., 'eth0', 'Wi-Fi')."
+    )
+    parser.add_argument(
+        "-l", "--limit",
+        help="Set a data usage limit (e.g., '10GB', '500MB')."
+    )
+    parser.add_argument(
+        "--log",
+        metavar="FILE",
+        help="Log all captured traffic to a specified file."
+    )
     args = parser.parse_args()
 
     app = NetMonitorTUI(
