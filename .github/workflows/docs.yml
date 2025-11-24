@@ -16,8 +16,8 @@ jobs:
       
       - name: Configure Git Credentials
         run: |
-          git config user.name "Docs Publisher"
-          git config user.email "docs@local"
+          git config user.name "Pranav Kishan"
+          git config user.email "ty.pranavkishan7905@gmail.com"
           
       - uses: actions/setup-python@v5
         with:
