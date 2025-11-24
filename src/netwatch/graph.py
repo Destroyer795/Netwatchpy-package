@@ -8,7 +8,7 @@ def generate_ascii_chart(data, width=60):
     if not data:
         return "[i]No data available for the last 24 hours. (Try generating some traffic!)[/i]"
 
-    # 1. Find the maximum value to scale the bars
+    # Find the maximum value to scale the bars
     max_val = 0
     for row in data:
         total = row[1] + row[2]
@@ -26,8 +26,8 @@ def generate_ascii_chart(data, width=60):
         ts, up, down = row
         total = up + down
         
-        # Extract just HH:MM from "YYYY-MM-DD HH:MM"
-        # Adjust index if your timestamp format differs, but standard ISO is YYYY-MM-DD HH:MM:SS
+        # Extract HH:MM from "YYYY-MM-DD HH:MM"
+        # Adjust index if timestamp format differs
         time_label = ts[11:16] 
 
         # Calculate bar widths relative to max_val

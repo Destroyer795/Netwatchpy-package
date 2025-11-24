@@ -23,7 +23,7 @@ class NetMonitorTUI(App):
         ("ctrl+d", "toggle_dark", "Toggle Dark Mode"),
         ("r", "refresh_chart", "Refresh Chart"),
         ("ctrl+r", "reset_counters", "Reset Counters"),
-        ("ctrl+s", "save_quota", "Info: Auto-Saved"),
+        ("ctrl+s", "save_quota", "Save Quota"),
         ("ctrl+q", "quit", "Quit"),
     ]
 
