@@ -19,7 +19,8 @@ Netwatch is a Python-based TUI (Text User Interface) application designed to hel
 
 Unlike complex system monitoring tools (like Task Manager or `htop`) which focus on *current* speed, Netwatch is focused on **bandwidth accounting**.
 
-It answers the simple but critical questions: 
+It answers the simple but critical questions:
+
 * *"How much data have I used today?"*
 
 * *"Did I hit my data cap yesterday?"*
