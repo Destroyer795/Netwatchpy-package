@@ -1,4 +1,5 @@
 # Netwatch TUI
+---
 
 Welcome to the official documentation for **Netwatch**, the advanced CLI network monitor.
 
@@ -20,5 +21,7 @@ Unlike complex system monitoring tools (like Task Manager or `htop`) which focus
 
 It answers the simple but critical questions: 
 * *"How much data have I used today?"*
+
 * *"Did I hit my data cap yesterday?"*
+
 * *"Am I mostly downloading or uploading?"*
