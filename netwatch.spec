@@ -1,25 +1,21 @@
 import sys
+import os
 from PyInstaller.utils.hooks import copy_metadata, collect_data_files
 
 datas = []
 
 # COLLECT METADATA & RESOURCES
-# Textual needs metadata for version info
 datas += copy_metadata('textual')
-# Netwatch needs its own metadata
 datas += copy_metadata('netwatchpy')
-# Desktop Notifier needs metadata AND actual data files (icons, resources)
 datas += copy_metadata('desktop_notifier')
+# This collects the icons/assets for notifications
 datas += collect_data_files('desktop_notifier')
 
 # DEFINE HIDDEN IMPORTS
 hidden_imports = [
-    # Textual Widgets (loaded dynamically, missed by PyInstaller)
     'textual.widgets._tab_pane',
     'textual.widgets._tabbed_content',
     'textual.widgets._data_table',
-    
-    # Desktop Notifier Resources (loaded dynamically)
     'desktop_notifier.resources',
 ]
 
@@ -34,8 +30,8 @@ elif sys.platform.startswith('darwin'):
 block_cipher = None
 
 a = Analysis(
-    ['src/netwatch/tui.py'],
-    pathex=[],
+    ['entry_point.py'],
+    pathex=['src'],
     binaries=[],
     datas=datas,
     hiddenimports=hidden_imports,
