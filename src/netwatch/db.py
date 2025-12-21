@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import json
+import time
 from datetime import datetime
 from platformdirs import user_config_dir
 
@@ -21,10 +22,11 @@ def init_db():
         conn.execute("PRAGMA journal_mode=WAL;") 
         
         c = conn.cursor()
+        # timestamp is (Unix Epoch) instead of TEXT
         c.execute("""
             CREATE TABLE IF NOT EXISTS usage_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT,
+                timestamp INTEGER,
                 upload_bytes INTEGER,
                 download_bytes INTEGER
             )
@@ -56,7 +58,8 @@ def _migrate_legacy_json():
             conn = _get_conn()
             try:
                 c = conn.cursor()
-                ts = datetime.now().isoformat(sep=' ', timespec='seconds')
+                # Use current Epoch time
+                ts = int(time.time())
                 c.execute(
                     "INSERT INTO usage_log (timestamp, upload_bytes, download_bytes) VALUES (?, ?, ?)",
                     (ts, old_up, old_down)
@@ -80,7 +83,7 @@ def log_traffic(up_delta: int, down_delta: int):
     conn = _get_conn()
     try:
         c = conn.cursor()
-        ts = datetime.now().isoformat(sep=' ', timespec='seconds')
+        ts = int(time.time())
         c.execute(
             "INSERT INTO usage_log (timestamp, upload_bytes, download_bytes) VALUES (?, ?, ?)",
             (ts, int(up_delta), int(down_delta))
@@ -108,22 +111,29 @@ def get_historical_totals():
 def get_hourly_usage_last_24h():
     """
     Returns a list of tuples: (hour_label, upload_bytes, download_bytes)
-    for the last 24 hours. Includes 'localtime' fix for correct grouping.
+    for the last 24 hours.
+    
+    We perform the aggregation in SQL using Unix Epoch math.
+    'unixepoch' and 'localtime' modifiers convert the int back to a string
+    only for the final grouped output, keeping the WHERE clause fast.
     """
     conn = _get_conn()
     try:
         c = conn.cursor()
+        
+        cutoff_time = int(time.time()) - 86400  # 24 hours ago in seconds
+        
         query = """
             SELECT 
-                strftime('%Y-%m-%d %H:00', timestamp) as hour_bucket,
+                strftime('%Y-%m-%d %H:00', timestamp, 'unixepoch', 'localtime') as hour_bucket,
                 SUM(upload_bytes),
                 SUM(download_bytes)
             FROM usage_log
-            WHERE timestamp >= datetime('now', 'localtime', '-1 day')
+            WHERE timestamp >= ?
             GROUP BY hour_bucket
             ORDER BY hour_bucket ASC
         """
-        c.execute(query)
+        c.execute(query, (cutoff_time,))
         return c.fetchall()
     finally:
         conn.close()
