@@ -1,18 +1,44 @@
-from PyInstaller.utils.hooks import copy_metadata
+import sys
+from PyInstaller.utils.hooks import copy_metadata, collect_data_files
 
 datas = []
-# Textual needs its metadata to work inside an EXE
+
+# COLLECT METADATA & RESOURCES
+# Textual needs metadata for version info
 datas += copy_metadata('textual')
-datas += copy_metadata('netwatchpy') 
+# Netwatch needs its own metadata
+datas += copy_metadata('netwatchpy')
+# Desktop Notifier needs metadata AND actual data files (icons, resources)
+datas += copy_metadata('desktop_notifier')
+datas += collect_data_files('desktop_notifier')
+
+# DEFINE HIDDEN IMPORTS
+hidden_imports = [
+    # Textual Widgets (loaded dynamically, missed by PyInstaller)
+    'textual.widgets._tab_pane',
+    'textual.widgets._tabbed_content',
+    'textual.widgets._data_table',
+    
+    # Desktop Notifier Resources (loaded dynamically)
+    'desktop_notifier.resources',
+]
+
+# OS-SPECIFIC DRIVERS
+if sys.platform.startswith('win'):
+    hidden_imports.append('textual.drivers.windows_driver')
+elif sys.platform.startswith('linux'):
+    hidden_imports.append('textual.drivers.linux_driver')
+elif sys.platform.startswith('darwin'):
+    hidden_imports.append('textual.drivers.macos_driver')
 
 block_cipher = None
 
 a = Analysis(
-    ['src/netwatch/tui.py'],  # Entry point
+    ['src/netwatch/tui.py'],
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=['textual.drivers.windows_driver', 'textual.drivers.linux_driver', 'textual.widgets._tab_pane','textual.widgets._tabbed_content'],
+    hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
