@@ -28,5 +28,6 @@ package-dir = {"" = "src"}
 packages = ["netwatch"]
 
 [project.urls]
+Documentation = "https://destroyer795.github.io/Netwatchpy-package"
 Homepage = "https://github.com/Destroyer795/Netwatchpy-package"
 Issues = "https://github.com/Destroyer795/Netwatchpy-package/issues"

@@ -61,9 +61,11 @@ This is the default view containing real-time stats:
 
 ### 2\. History Tab (24h)
 
-This tab visualizes your traffic over the last 24 hours.
+This tab visualizes your traffic over the last 24 hours with detailed analytics.
 
-*   **Rows:** Each row represents a 1-hour block of time (e.g., 14:00 covers 2:00 PM to 2:59 PM).
+*   **Traffic Summary:** Displays total upload/download with percentages, peak hour, and average usage per hour.
+    
+*   **Hourly Breakdown:** Each row represents a 1-hour block of time (e.g., 14:00 covers 2:00 PM to 2:59 PM).
     
 *   **The Bar:**
     
@@ -71,7 +73,9 @@ This tab visualizes your traffic over the last 24 hours.
         
     *   **Shaded Block (░):** Represents **Upload** traffic.
         
+*   **Peak Hour:** Highlighted with a (PEAK) marker to show when you used the most data.
+    
 *   **Total:** The text on the far right shows the exact data transferred during that hour.
     
 
-> **Tip:** The graph does not auto-refresh to save resources. Press r whenever you want to see the latest bars.
+> **Tip:** The graph does not auto-refresh to save resources. Press r whenever you want to see the latest data and statistics.

@@ -15,7 +15,7 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 ## Features
 
 * **Real-time Dashboard:** A clean, terminal-based dashboard showing total download, upload, and current speeds.
-* **Historical Analytics:** View your usage trends for the last 24 hours with a built-in interactive ASCII graph.
+* **Historical Analytics:** View your usage trends for the last 24 hours with hourly breakdown, peak hour identification, and traffic statistics including download/upload percentages and average usage.
 * **Crash-Proof Database:** Powered by SQLite with Write-Ahead Logging (WAL) to ensure your data is safe even if your PC loses power.
 * **Data Cap Monitoring:** Set a data limit (e.g., `10GB`) and see your usage on a real-time progress bar.
 * **Desktop Notifications:** Get native desktop notifications when you hit 80% and 100% of your data limit.
