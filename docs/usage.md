@@ -36,6 +36,8 @@ Once inside the application, use these keyboard shortcuts to control the interfa
 
 *   **r** (Refresh Chart): Updates the graph in the "History" tab with the latest data.
     
+*   **Ctrl+b** (Toggle Bits/Bytes): Switch between Bits (Mbps) and Bytes (MB/s) display.
+
 *   **Ctrl+r** (Reset All): Wipes the database and resets all counters to 0. **Use with caution.**
     
 *   **Ctrl+d** (Dark Mode): Toggles between Light and Dark themes.

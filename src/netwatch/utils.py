@@ -1,15 +1,23 @@
-def get_size(byte_val):
-    """Convert bytes into human readable string."""
+def get_size(byte_val, use_bits=False):
+    """
+    Convert bytes into human readable string.
+    If use_bits=True, converts to bits (multiply by 8) and uses 'b' suffix.
+    """
     if byte_val is None:
-        return "0 B"
+        return "0 b" if use_bits else "0 B"
+    
+    val = byte_val * 8 if use_bits else byte_val
+    suffix = "b" if use_bits else "B"
+    
     power = 1024
     n = 0
     units = ["", "K", "M", "G", "T"]
-    while byte_val >= power and n < len(units) - 1:
-        byte_val /= power
+    
+    while val >= power and n < len(units) - 1:
+        val /= power
         n += 1
-    return f"{byte_val:.2f} {units[n]}B"
-
+        
+    return f"{val:.2f} {units[n]}{suffix}"
 
 def parse_limit(size_str):
     """Parse a string like '10GB' or '500MB' into bytes."""

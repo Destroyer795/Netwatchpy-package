@@ -18,6 +18,9 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 * **Historical Analytics:** View your usage trends for the last 24 hours with hourly breakdown, peak hour identification, and traffic statistics including download/upload percentages and average usage.
 * **Crash-Proof Database:** Powered by SQLite with Write-Ahead Logging (WAL) to ensure your data is safe even if your PC loses power.
 * **Data Cap Monitoring:** Set a data limit (e.g., `10GB`) and see your usage on a real-time progress bar.
+* **Standalone Binaries:** Available as a single .exe or binary file, that way no Python installation is required but no.
+> *Note: Double-clicking the file launches the **Basic Monitor** (all interfaces, no limit). To set Data Caps or Filters, run the file via Command Prompt/Terminal.*
+* **Smart Units:** Toggle between Bits (Mbps) and Bytes (MB/s) instantly with Ctrl+B to match ISP speeds or file sizes.
 * **Desktop Notifications:** Get native desktop notifications when you hit 80% and 100% of your data limit.
 * **Live Activity Log:** An interactive, scrolling log of all network activity, updated every second.
 * **Command Palette & Dark Mode:** A modern TUI experience with a built-in command palette (`Ctrl+P`) and dark mode support (`Ctrl+D`).
@@ -27,7 +30,16 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 ---
 
 ## Installation
+### Option 1: Standalone Binary (Easiest)
+No Python required.
+1.  Download `netwatch-windows.exe` from the [**Releases Page**](https://github.com/Destroyer795/Netwatchpy-package/releases).
+2.  **Basic Usage:** Double-click the file to start monitoring immediately.
+3.  **Advanced Usage:** To set limits (e.g., `-l 10GB`), open your terminal (PowerShell/CMD) in the download folder and run:
+    ```powershell
+    .\netwatch-windows.exe -l 10GB
+    ```
 
+### Option 2: Install via PyPI (Recommended for CLI)
 Designed for Python 3.8+ and distributed on PyPI for simple installation with `pip`.
 
 ```bash
@@ -94,6 +106,8 @@ netwatch -i "Wi-Fi" --log "my_usage.csv"
 *   **`Ctrl+p`**: Open the Command Palette
     
 *   **`Ctrl+d`**: Toggle Dark / Light Mode
+
+*   **`Ctrl+b`**: Toggle Bits/Bytes (Mbps ↔ MB/s)
 
 *   **`r`**: Refresh the history chart
 

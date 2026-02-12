@@ -22,6 +22,7 @@ class NetMonitorTUI(App):
     BINDINGS = [
         ("ctrl+p", "command_palette", "Command Palette"),
         ("ctrl+d", "toggle_dark", "Toggle Dark Mode"),
+        ("ctrl+b", "toggle_bits", "Toggle Bits/Bytes"),  # <--- NEW KEYBINDING
         ("r", "refresh_chart", "Refresh Chart"),
         ("ctrl+r", "reset_counters", "Reset Counters"),
         ("ctrl+s", "save_quota", "Save Status"),
@@ -95,6 +96,7 @@ class NetMonitorTUI(App):
     upload_speed = var(0)
     download_speed = var(0)
     dark = var(False)
+    show_bits = var(False)  # <--- NEW STATE VARIABLE
 
     def __init__(self, interface="all", limit_str=None, log_file=None):
         super().__init__()
@@ -110,7 +112,6 @@ class NetMonitorTUI(App):
         self.alert_100_sent = False
 
     def _log_event(self, message: str):
-        """Writes a timestamped event message to the log file."""
         if self.log_file:
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -121,7 +122,6 @@ class NetMonitorTUI(App):
                 self.query_one("#error_box").update(f"ERROR: Failed to write to log file: {e}")
 
     def _log_error(self, message: str):
-        """Writes a timestamped error message to the log file."""
         if self.log_file:
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -138,13 +138,16 @@ class NetMonitorTUI(App):
             with TabPane("Live Monitor", id="live_tab"):
                 with VerticalScroll(id="main_container"):
                     with Horizontal(id="summary_cards"):
+                        # Initial labels will be updated by watch methods immediately
                         yield Static("Total Download\n[b]0.00 B[/b]", id="total-dl-card", classes="summary_card")
                         yield Static("Total Upload\n[b]0.00 B[/b]", id="total-ul-card", classes="summary_card")
                         yield Static("Total Usage\n[b]0.00 B[/b]", id="total-usage-card", classes="summary_card")
 
                     with Container(id="limit_container"):
                         if self.limit_bytes:
-                            yield Static(f"Usage Limit: {get_size(self.limit_bytes)}")
+                            # Note: Limits are usually kept in Bytes (GB), but we can toggle this too if desired.
+                            # For now, limits usually stay in Bytes as that's how quotas work.
+                            yield Static(f"Usage Limit: {get_size(self.limit_bytes, False)}", id="limit_label")
                             yield ProgressBar(id="limit_bar", total=self.limit_bytes, show_eta=False)
                         else:
                             yield Static("Usage Limit: Not Set")
@@ -159,7 +162,6 @@ class NetMonitorTUI(App):
         yield Footer()
 
     def on_mount(self):
-        """Executed when TUI is ready."""
         if self.log_file and os.path.exists(self.log_file):
             self._log_event("SESSION STARTED")
 
@@ -170,7 +172,6 @@ class NetMonitorTUI(App):
         self.total_download = down
         self.total_usage = up + down
 
-        # Build table
         table = self.query_one(DataTable)
         table.add_column("Time")
         table.add_column("Up Speed")
@@ -186,7 +187,6 @@ class NetMonitorTUI(App):
             except Exception:
                 pass
 
-        # Start monitoring thread
         self.monitor_thread = NetworkMonitorThread(
             self.on_data_update,
             interface=self.interface,
@@ -196,7 +196,6 @@ class NetMonitorTUI(App):
         )
         self.monitor_thread.start()
 
-        # Refresh chart on startup
         self.refresh_chart()
 
     def on_exit(self):
@@ -230,13 +229,14 @@ class NetMonitorTUI(App):
 
         try:
             table = self.query_one(DataTable)
+            # Use self.show_bits for formatting
             table.add_row(
                 data["timestamp"].split(" ")[1],
-                f"{get_size(self.upload_speed)}/s",
-                f"{get_size(self.download_speed)}/s",
-                get_size(self.total_upload),
-                get_size(self.total_download),
-                get_size(self.total_usage),
+                f"{get_size(self.upload_speed, self.show_bits)}/s",
+                f"{get_size(self.download_speed, self.show_bits)}/s",
+                get_size(self.total_upload, self.show_bits),
+                get_size(self.total_download, self.show_bits),
+                get_size(self.total_usage, self.show_bits),
             )
             table.scroll_end(animate=False)
 
@@ -246,21 +246,23 @@ class NetMonitorTUI(App):
         except NoMatches:
             pass
 
+    # --- WATCHERS: These update the UI whenever variables change ---
+
     def watch_total_download(self, new):
         try:
-            self.query_one("#total-dl-card").update(f"Total Download\n[b]{get_size(new)}[/b]")
+            self.query_one("#total-dl-card").update(f"Total Download\n[b]{get_size(new, self.show_bits)}[/b]")
         except NoMatches:
             pass
 
     def watch_total_upload(self, new):
         try:
-            self.query_one("#total-ul-card").update(f"Total Upload\n[b]{get_size(new)}[/b]")
+            self.query_one("#total-ul-card").update(f"Total Upload\n[b]{get_size(new, self.show_bits)}[/b]")
         except NoMatches:
             pass
 
     async def watch_total_usage(self, new_total_usage: int):
         try:
-            self.query_one("#total-usage-card").update(f"Total Usage\n[b]{get_size(new_total_usage)}[/b]")
+            self.query_one("#total-usage-card").update(f"Total Usage\n[b]{get_size(new_total_usage, self.show_bits)}[/b]")
             
             if self.limit_bytes:
                 bar = self.query_one(ProgressBar)
@@ -277,11 +279,10 @@ class NetMonitorTUI(App):
                     try:
                         await self.notifier.send(
                             title="Netwatch: 80% Usage Warning",
-                            message=f"You have used {get_size(new_total_usage)}."
+                            message=f"You have used {get_size(new_total_usage, False)}." # Keep notifications in Bytes usually
                         )
                     except Exception as e:
                         self._log_error(f"Failed to send 80% notification: {e}")
-                        print(f"[Notification Error] {e}", file=sys.stderr)
 
                 if new_total_usage >= self.limit_bytes and not self.alert_100_sent:
                     self.alert_100_sent = True
@@ -291,16 +292,31 @@ class NetMonitorTUI(App):
                     try:
                         await self.notifier.send(
                             title="Netwatch: Data Limit Exceeded!",
-                            message=f"You have exceeded your {get_size(self.limit_bytes)} data limit."
+                            message=f"You have exceeded your {get_size(self.limit_bytes, False)} data limit."
                         )
                     except Exception as e:
                         self._log_error(f"Failed to send 100% notification: {e}")
-                        print(f"[Notification Error] {e}", file=sys.stderr)
         except NoMatches:
             pass
 
+    # --- NEW WATCHER FOR BITS TOGGLE ---
+    def watch_show_bits(self, new_val):
+        """When show_bits toggles, force update the summary cards immediately."""
+        # We manually trigger the updates using current values
+        self.watch_total_download(self.total_download)
+        self.watch_total_upload(self.total_upload)
+        # Note: The table will update rows from *now on*, but old rows remain as they were.
+        # If you want to update the limit label too:
+        if self.limit_bytes:
+            try:
+                self.query_one("#limit_label").update(f"Usage Limit: {get_size(self.limit_bytes, new_val)}")
+            except NoMatches:
+                pass
+        
+        unit = "Bits (Mb)" if new_val else "Bytes (MB)"
+        self.sub_title = f"Switched to {unit}"
+
     def on_tabbed_content_tab_activated(self, event):
-        """Auto-refresh when user clicks the History tab."""
         if event.tab.id == "history_tab":
             self.refresh_chart()
 
@@ -319,7 +335,6 @@ class NetMonitorTUI(App):
                 pass
 
     def action_refresh_chart(self):
-        """Called when 'r' is pressed to refresh the chart."""
         self.sub_title = "Refreshing chart data..."
         self.refresh_chart()
 
@@ -328,8 +343,11 @@ class NetMonitorTUI(App):
         self.set_class(self.dark, "-dark-mode")
         self.sub_title = "🌙 Dark Mode" if self.dark else "☀️ Light Mode"
 
+    def action_toggle_bits(self):
+        """Toggle between Bytes (MB) and Bits (Mb)."""
+        self.show_bits = not self.show_bits
+
     def action_reset_counters(self):
-        """Resets all counters to 0, clears DB, and refreshes chart."""
         self._log_event("Counters reset.")
         if self.monitor_thread:
             self.monitor_thread.stop()
@@ -350,7 +368,6 @@ class NetMonitorTUI(App):
         except NoMatches:
             pass
 
-        # Refresh chart to show empty state
         self.refresh_chart()
 
         self.monitor_thread = NetworkMonitorThread(
