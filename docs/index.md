@@ -9,6 +9,7 @@ Netwatch is a Python-based TUI (Text User Interface) application designed to hel
 
 ## Key Features
 
+* **Per-Interface Monitoring:** Dedicated split-pane view to inspect real-time bandwidth and activity charts segmented per active network adapter.
 * **SQLite Backend:** Crash-proof history storage that survives unexpected shutdowns.
 * **Real-time Graphs:** Unicode-based visualization for 24-hour traffic analysis with hourly breakdown, peak hour identification, and traffic statistics.
 * **Zero-Dependencies:** Runs anywhere Python runs without heavy graphical libraries.

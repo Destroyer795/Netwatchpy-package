@@ -5,15 +5,16 @@ from textwrap import dedent
 
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll, Horizontal, Container
-from textual.widgets import Header, Footer, DataTable, ProgressBar, Static, TabbedContent, TabPane
+from textual.widgets import Header, Footer, DataTable, ProgressBar, Static, TabbedContent, TabPane, OptionList
+from textual.widgets.option_list import Option
 from textual.reactive import var
 from textual.css.query import NoMatches
 from desktop_notifier import DesktopNotifier
 
 from .utils import get_size, parse_limit
 from .monitor import NetworkMonitorThread
-from .db import init_db, get_historical_totals, clear_history, get_hourly_usage_last_24h
-from .graph import generate_ascii_chart
+from .db import init_db, get_historical_totals, clear_history, get_hourly_usage_last_24h, get_interface_totals
+from .graph import generate_ascii_chart, generate_interface_activity_chart
 
 class NetMonitorTUI(App):
     TITLE = "Network Usage Monitor"
@@ -88,6 +89,85 @@ class NetMonitorTUI(App):
             padding: 1;
             color: #888;
         }
+
+        /* Split-pane layout for Per-Interface tab */
+        #interfaces_split_view {
+            layout: horizontal;
+            height: 1fr;
+        }
+
+        #interfaces_sidebar {
+            width: 32;
+            min-width: 25;
+            max-width: 38;
+            height: 1fr;
+            border-right: solid black;
+            padding: 1;
+            background: #f0f0f0;
+        }
+        .-dark-mode #interfaces_sidebar {
+            border-right: solid #666;
+            background: #181818;
+        }
+
+        #iface_sidebar_title {
+            text-align: center;
+            text-style: bold;
+            color: #007acc;
+            margin-bottom: 1;
+        }
+        .-dark-mode #iface_sidebar_title {
+            color: #55aaff;
+        }
+
+        #iface_option_list {
+            height: 1fr;
+            background: transparent;
+            border: none;
+        }
+
+        #interface_detail_pane {
+            width: 1fr;
+            height: 1fr;
+            padding: 0 1;
+        }
+
+        #iface_summary_cards {
+            layout: horizontal;
+            height: auto;
+            padding: 1 0;
+        }
+
+        #iface_totals_card {
+            height: auto;
+            padding: 1 2;
+            margin: 0 1 1 1;
+            border: solid black;
+            background: #e8e8e8;
+        }
+        .-dark-mode #iface_totals_card {
+            border: solid #888;
+            background: #222;
+            color: #e0e0e0;
+        }
+
+        #iface_graph_container {
+            height: auto;
+            border: solid black;
+            padding: 1 2;
+            margin: 0 1;
+            background: white;
+            color: black;
+        }
+        .-dark-mode #iface_graph_container {
+            border: solid #666;
+            background: #222;
+            color: #e0e0e0;
+        }
+
+        #iface_graph_area {
+            height: auto;
+        }
     """)
 
     total_upload = var(0)
@@ -110,6 +190,11 @@ class NetMonitorTUI(App):
         
         self.alert_80_sent = False
         self.alert_100_sent = False
+
+        self.selected_interface = None
+        self.interfaces_data = {}
+        self.interface_history = {}
+        self.known_interfaces = []
 
     def _log_event(self, message: str):
         if self.log_file:
@@ -154,6 +239,21 @@ class NetMonitorTUI(App):
 
                     yield Static(id="error_box")
                     yield DataTable(id="stats_table")
+
+            with TabPane("Per-Interface", id="interfaces_tab"):
+                with Horizontal(id="interfaces_split_view"):
+                    with Container(id="interfaces_sidebar"):
+                        yield Static("ACTIVE INTERFACES", id="iface_sidebar_title")
+                        yield OptionList(id="iface_option_list")
+                    with VerticalScroll(id="interface_detail_pane"):
+                        with Horizontal(id="iface_summary_cards"):
+                            yield Static("Interface\n[b]None[/b]", id="iface-name-card", classes="summary_card")
+                            yield Static("Download Speed\n[b]0.00 B/s[/b]", id="iface-dl-card", classes="summary_card")
+                            yield Static("Upload Speed\n[b]0.00 B/s[/b]", id="iface-ul-card", classes="summary_card")
+                        with Container(id="iface_totals_card"):
+                            yield Static("Session Total:  ▼ 0.00 B  |  ▲ 0.00 B\nAdapter Total:  ▼ 0.00 B  |  ▲ 0.00 B", id="iface_totals_label")
+                        with Container(id="iface_graph_container"):
+                            yield Static("Waiting for traffic...", id="iface_graph_area")
 
             with TabPane("History (24h)", id="history_tab"):
                 yield Static("Analyzing database...", id="chart_area")
@@ -246,6 +346,95 @@ class NetMonitorTUI(App):
         except NoMatches:
             pass
 
+        # Process per-interface metrics
+        if "interfaces" in data:
+            self.interfaces_data = data["interfaces"]
+            active_names = sorted(list(self.interfaces_data.keys()))
+
+            # Update option list if the interface list changed
+            if active_names != self.known_interfaces:
+                self.known_interfaces = list(active_names)
+                try:
+                    opt_list = self.query_one("#iface_option_list", OptionList)
+                    opt_list.clear_options()
+                    for name in active_names:
+                        opt_list.add_option(Option(f" {name}", id=name))
+                    
+                    if not self.selected_interface or self.selected_interface not in active_names:
+                        if active_names:
+                            self.selected_interface = active_names[0]
+                            opt_list.highlighted = 0
+                except NoMatches:
+                    pass
+
+            # Record history for each active interface
+            for name, if_data in self.interfaces_data.items():
+                if name not in self.interface_history:
+                    self.interface_history[name] = []
+                self.interface_history[name].append((if_data["upload_speed"], if_data["download_speed"]))
+                if len(self.interface_history[name]) > 60:
+                    self.interface_history[name].pop(0)
+
+            # Update interface detail view for currently selected interface
+            if self.selected_interface:
+                self._update_interface_detail_view()
+
+    def on_option_list_option_highlighted(self, event: OptionList.OptionHighlighted):
+        if event.option_id:
+            self.selected_interface = event.option_id
+            self._update_interface_detail_view()
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected):
+        if event.option_id:
+            self.selected_interface = event.option_id
+            self._update_interface_detail_view()
+
+    def _update_interface_detail_view(self):
+        if not self.selected_interface:
+            try:
+                self.query_one("#iface-name-card").update("Interface\n[b]None[/b]")
+                self.query_one("#iface-dl-card").update("Download Speed\n[b]0.00 B/s[/b]")
+                self.query_one("#iface-ul-card").update("Upload Speed\n[b]0.00 B/s[/b]")
+                self.query_one("#iface_totals_label").update("No active network interfaces detected.")
+                self.query_one("#iface_graph_area").update("[i]Waiting for active network interface...[/i]")
+            except NoMatches:
+                pass
+            return
+
+        iface = self.selected_interface
+        stats = self.interfaces_data.get(iface, {
+            "upload_speed": 0,
+            "download_speed": 0,
+            "session_upload": 0,
+            "session_download": 0,
+            "bytes_sent": 0,
+            "bytes_recv": 0,
+        })
+
+        try:
+            self.query_one("#iface-name-card").update(f"Interface\n[b]{iface}[/b]")
+            self.query_one("#iface-dl-card").update(f"Download Speed\n[b]{get_size(stats['download_speed'], self.show_bits)}/s[/b]")
+            self.query_one("#iface-ul-card").update(f"Upload Speed\n[b]{get_size(stats['upload_speed'], self.show_bits)}/s[/b]")
+
+            session_down = get_size(stats.get("session_download", 0), self.show_bits)
+            session_up = get_size(stats.get("session_upload", 0), self.show_bits)
+            session_tot = get_size(stats.get("session_download", 0) + stats.get("session_upload", 0), self.show_bits)
+
+            hw_down = get_size(stats.get("bytes_recv", 0), self.show_bits)
+            hw_up = get_size(stats.get("bytes_sent", 0), self.show_bits)
+
+            totals_text = (
+                f"[b]Session Total:[/b]  ▼ {session_down}  |  ▲ {session_up}  (Combined: {session_tot})\n"
+                f"[b]Adapter Total:[/b]  ▼ {hw_down}  |  ▲ {hw_up}"
+            )
+            self.query_one("#iface_totals_label").update(totals_text)
+
+            history = self.interface_history.get(iface, [])
+            chart_str = generate_interface_activity_chart(history, width=38, height=6, show_bits=self.show_bits)
+            self.query_one("#iface_graph_area").update(chart_str)
+        except NoMatches:
+            pass
+
     # --- WATCHERS: These update the UI whenever variables change ---
 
     def watch_total_download(self, new):
@@ -313,12 +502,15 @@ class NetMonitorTUI(App):
             except NoMatches:
                 pass
         
+        self._update_interface_detail_view()
         unit = "Bits (Mb)" if new_val else "Bytes (MB)"
         self.sub_title = f"Switched to {unit}"
 
     def on_tabbed_content_tab_activated(self, event):
         if event.tab.id == "history_tab":
             self.refresh_chart()
+        elif event.tab.id == "interfaces_tab":
+            self._update_interface_detail_view()
 
     def refresh_chart(self):
         try:
@@ -337,6 +529,7 @@ class NetMonitorTUI(App):
     def action_refresh_chart(self):
         self.sub_title = "Refreshing chart data..."
         self.refresh_chart()
+        self._update_interface_detail_view()
 
     def action_toggle_dark(self):
         self.dark = not self.dark
@@ -358,6 +551,8 @@ class NetMonitorTUI(App):
         self.total_upload = 0
         self.total_download = 0
         self.total_usage = 0
+        self.interface_history = {}
+        self.interfaces_data = {}
         self.sub_title = "History Cleared"
         self.alert_80_sent = False
         self.alert_100_sent = False
@@ -369,6 +564,7 @@ class NetMonitorTUI(App):
             pass
 
         self.refresh_chart()
+        self._update_interface_detail_view()
 
         self.monitor_thread = NetworkMonitorThread(
             self.on_data_update,

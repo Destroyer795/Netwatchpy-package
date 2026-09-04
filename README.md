@@ -15,6 +15,7 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 ## Features
 
 * **Real-time Dashboard:** A clean, terminal-based dashboard showing total download, upload, and current speeds.
+* **Per-Interface Monitoring:** Inspect bandwidth, upload/download speeds, and live 2D activity graphs segmented per active network adapter (e.g., Wi-Fi, Ethernet) with automatic loopback filtering.
 * **Historical Analytics:** View your usage trends for the last 24 hours with hourly breakdown, peak hour identification, and traffic statistics including download/upload percentages and average usage.
 * **Crash-Proof Database:** Powered by SQLite with Write-Ahead Logging (WAL) to ensure your data is safe even if your PC loses power.
 * **Data Cap Monitoring:** Set a data limit (e.g., `10GB`) and see your usage on a real-time progress bar.
@@ -132,7 +133,15 @@ This is the default view. It shows:
 *   **Live Table:** A scrolling list of network speeds recorded every second.
     
 
-#### 2\. History Tab (24h)
+#### 2\. Per-Interface Tab
+
+A split-pane view displaying segmented metrics for each active network interface:
+
+*   **Sidebar (Left):** Selectable list of active interfaces (virtual and loopback connections are filtered out).
+*   **Metrics Cards (Right):** Current download/upload speeds, session totals, and hardware adapter totals for the selected interface.
+*   **Real-time Activity Graph:** An uncluttered 2D waveform chart plotting live traffic trends (`█` = Download, `░` = Upload).
+
+#### 3\. History Tab (24h)
 
 This tab visualizes your traffic over the last 24 hours.
 

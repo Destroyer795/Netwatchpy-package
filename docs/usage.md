@@ -61,7 +61,17 @@ This is the default view containing real-time stats:
 *   **Live Table:** A scrolling list of network speeds recorded every second.
     
 
-### 2\. History Tab (24h)
+### 2\. Per-Interface Tab
+
+This tab provides a segmented master-detail view of individual active network interfaces (e.g. Wi-Fi, Ethernet). Virtual and inactive connections (such as loopback) are automatically filtered out.
+
+*   **Active Interfaces Sidebar (Left):** Selectable list of active network adapters. Use the arrow keys or mouse to highlight any interface.
+    
+*   **Focused Metrics (Right):** Displays current upload and download speeds, session totals, and hardware adapter totals for the selected interface.
+    
+*   **Real-time Activity Graph:** An uncluttered 2D waveform graph that continuously plots recent traffic patterns for the chosen interface in real time (`█` for Download, `░` for Upload).
+
+### 3\. History Tab (24h)
 
 This tab visualizes your traffic over the last 24 hours with detailed analytics.
 

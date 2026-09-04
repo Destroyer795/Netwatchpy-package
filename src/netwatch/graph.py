@@ -87,3 +87,48 @@ def generate_ascii_chart(data, width=50):
     lines.append("Legend: █ = Download, ░ = Upload")
     
     return "\n".join(lines)
+
+def generate_interface_activity_chart(history_points, width=40, height=6, show_bits=False):
+    """
+    Generates a clean, uncluttered real-time 2D activity graph for a specific interface.
+    history_points: list of (upload_speed, download_speed) tuples.
+    """
+    if not history_points:
+        return "[i]Waiting for traffic on this interface...[/i]"
+
+    samples = history_points[-width:]
+    if len(samples) < width:
+        samples = [(0, 0)] * (width - len(samples)) + samples
+
+    current_up, current_down = history_points[-1]
+    peak_up = max((p[0] for p in history_points), default=0)
+    peak_down = max((p[1] for p in history_points), default=0)
+    peak_total = max([up + down for up, down in samples] + [1])
+
+    lines = []
+    lines.append("REAL-TIME TRAFFIC GRAPH")
+    lines.append("─" * 58)
+    lines.append(f"Current:  ▼ {get_size(current_down, show_bits)}/s    ▲ {get_size(current_up, show_bits)}/s")
+    lines.append(f"Peak:     ▼ {get_size(peak_down, show_bits)}/s    ▲ {get_size(peak_up, show_bits)}/s")
+    lines.append("─" * 58)
+
+    label_width = 11
+    for r in range(height - 1, -1, -1):
+        threshold = ((r + 0.5) / height) * peak_total
+        row_chars = []
+        for up, down in samples:
+            tot = up + down
+            if tot >= threshold and tot > 0:
+                row_chars.append("█" if down >= up else "░")
+            elif r == 0 and tot > 0:
+                row_chars.append("█" if down >= up else "░")
+            else:
+                row_chars.append(" ")
+        label_val = int(((r + 1) / height) * peak_total)
+        lbl = f"{get_size(label_val, show_bits)}/s"
+        lines.append(f"{lbl:>{label_width}} |" + "".join(row_chars))
+
+    lines.append(" " * label_width + " +" + "-" * width + "> (now)")
+    lines.append("")
+    lines.append("Legend: █ = Download, ░ = Upload")
+    return "\n".join(lines)

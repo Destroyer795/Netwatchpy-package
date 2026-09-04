@@ -32,6 +32,17 @@ def init_db():
             )
         """)
         c.execute("CREATE INDEX IF NOT EXISTS idx_ts ON usage_log (timestamp)")
+
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS interface_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp INTEGER,
+                interface_name TEXT,
+                bytes_sent INTEGER,
+                bytes_recv INTEGER
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_iface_ts ON interface_metrics (interface_name, timestamp)")
         conn.commit()
     finally:
         conn.close()
@@ -138,12 +149,79 @@ def get_hourly_usage_last_24h():
     finally:
         conn.close()
 
+def log_interface_metrics(records):
+    """
+    Bulk insert interface metrics to minimize database write locks.
+    records: list of tuples (timestamp, interface_name, bytes_sent, bytes_recv)
+    """
+    if not records:
+        return
+
+    conn = _get_conn()
+    try:
+        c = conn.cursor()
+        c.executemany(
+            "INSERT INTO interface_metrics (timestamp, interface_name, bytes_sent, bytes_recv) VALUES (?, ?, ?, ?)",
+            records
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_interface_totals():
+    """
+    Returns a dictionary of total bytes sent and received per interface:
+    {interface_name: (total_sent, total_recv)}
+    """
+    if not os.path.exists(DB_FILE):
+        return {}
+
+    conn = _get_conn()
+    try:
+        c = conn.cursor()
+        c.execute("""
+            SELECT interface_name, SUM(bytes_sent), SUM(bytes_recv)
+            FROM interface_metrics
+            GROUP BY interface_name
+        """)
+        totals = {}
+        for row in c.fetchall():
+            totals[row[0]] = (int(row[1] or 0), int(row[2] or 0))
+        return totals
+    finally:
+        conn.close()
+
+def get_interface_hourly_usage(interface_name: str):
+    """
+    Returns a list of tuples: (hour_label, bytes_sent, bytes_recv)
+    for a specific interface over the last 24 hours.
+    """
+    conn = _get_conn()
+    try:
+        c = conn.cursor()
+        cutoff_time = int(time.time()) - 86400
+        query = """
+            SELECT 
+                strftime('%Y-%m-%d %H:00', timestamp, 'unixepoch', 'localtime') as hour_bucket,
+                SUM(bytes_sent),
+                SUM(bytes_recv)
+            FROM interface_metrics
+            WHERE interface_name = ? AND timestamp >= ?
+            GROUP BY hour_bucket
+            ORDER BY hour_bucket ASC
+        """
+        c.execute(query, (interface_name, cutoff_time))
+        return c.fetchall()
+    finally:
+        conn.close()
+
 def clear_history():
     """Wipe all historical data."""
     conn = _get_conn()
     try:
         c = conn.cursor()
         c.execute("DELETE FROM usage_log")
+        c.execute("DELETE FROM interface_metrics")
         conn.commit()
     finally:
         conn.close()
