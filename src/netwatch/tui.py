@@ -13,7 +13,7 @@ from desktop_notifier import DesktopNotifier
 
 from .utils import get_size, parse_limit
 from .monitor import NetworkMonitorThread
-from .db import init_db, get_historical_totals, clear_history, get_hourly_usage_last_24h, get_interface_totals
+from .db import init_db, get_historical_totals, clear_history, get_hourly_usage_last_24h, get_interface_totals, checkpoint_wal
 from .graph import generate_ascii_chart, generate_interface_activity_chart
 
 class NetMonitorTUI(App):
@@ -178,12 +178,13 @@ class NetMonitorTUI(App):
     dark = var(False)
     show_bits = var(False)  # <--- NEW STATE VARIABLE
 
-    def __init__(self, interface="all", limit_str=None, log_file=None):
+    def __init__(self, interface="all", limit_str=None, log_file=None, retention_days=7):
         super().__init__()
         self.interface = interface
         self.limit_bytes = parse_limit(limit_str)
         self.limit_str = limit_str or "No Limit"
         self.log_file = log_file
+        self.retention_days = max(1, int(retention_days))
 
         self.notifier = DesktopNotifier(app_name="Netwatch")
         self.monitor_thread = None
@@ -265,7 +266,7 @@ class NetMonitorTUI(App):
         if self.log_file and os.path.exists(self.log_file):
             self._log_event("SESSION STARTED")
 
-        init_db()
+        init_db(self.retention_days)
         up, down = get_historical_totals()
         
         self.total_upload = up
@@ -298,10 +299,17 @@ class NetMonitorTUI(App):
 
         self.refresh_chart()
 
+        # Periodic passive WAL checkpoint every 30 minutes
+        self.set_interval(1800, lambda: checkpoint_wal(truncate=False))
+
     def on_exit(self):
         if self.monitor_thread:
             self.monitor_thread.stop()
             self.monitor_thread.join(timeout=1.5)
+        checkpoint_wal(truncate=True)
+
+    def on_unmount(self):
+        self.on_exit()
 
     def on_data_update(self, data: dict):
         self.call_from_thread(self._process_data_packet, data)
@@ -597,12 +605,19 @@ def main():
         metavar="FILE",
         help="Log all captured traffic to a specified file."
     )
+    parser.add_argument(
+        "--retention-days",
+        type=int,
+        default=7,
+        help="Data retention period in days for raw granular metrics (default: 7)."
+    )
     args = parser.parse_args()
 
     app = NetMonitorTUI(
         interface=args.interface,
         limit_str=args.limit,
         log_file=args.log,
+        retention_days=args.retention_days,
     )
     app.run()
 

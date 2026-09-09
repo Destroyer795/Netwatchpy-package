@@ -2,8 +2,11 @@ import unittest
 import time
 import sqlite3
 import os
+import sys
 from unittest.mock import MagicMock
 from collections import namedtuple
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from netwatch.monitor import is_active_interface, NetworkMonitorThread
 from netwatch.db import (

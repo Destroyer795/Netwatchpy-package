@@ -28,6 +28,10 @@ You can customize how Netwatch starts using flags.
     
     *   Example: netwatch --log "session.csv"
         
+*   **\--retention-days**: Set data retention period in days for raw granular metrics (default: 7). Older records are rolled up into hourly summaries before being purged.
+    
+    *   Example: netwatch --retention-days 14
+        
 
 TUI Controls & Shortcuts
 ------------------------
@@ -91,3 +95,12 @@ This tab visualizes your traffic over the last 24 hours with detailed analytics.
     
 
 > **Tip:** The graph does not auto-refresh to save resources. Press r whenever you want to see the latest data and statistics.
+
+Database Retention & Downsampling
+---------------------------------
+
+Netwatch automatically optimizes its internal SQLite database to prevent unbounded file growth during 24/7 continuous operation:
+
+*   **Automated Data Retention:** Granular, second-by-second records are retained for a configurable window (default: 7 days, controlled via `--retention-days`).
+*   **Hourly Aggregations (Rollups):** Older records beyond the retention threshold are compressed into hourly summaries (`hourly_summary` table) storing total transfer volume and min/max/average speeds before raw records are purged. Historical totals are preserved seamlessly.
+*   **WAL Maintenance:** Passive checkpoints run periodically and truncate checkpoints run on clean exit to keep SQLite WAL files minimal on disk.

@@ -1,6 +1,10 @@
 import unittest
 import asyncio
+import os
+import sys
 from unittest.mock import patch
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from textual.widgets import OptionList, Static, TabbedContent
 from netwatch.tui import NetMonitorTUI
@@ -67,7 +71,7 @@ class TestTUIInterfaceTab(unittest.IsolatedAsyncioTestCase):
             self.assertIn(app.selected_interface, ["Ethernet", "Wi-Fi"])
 
             # Detail view should reflect the selected interface
-            self.assertIn(app.selected_interface, str(name_card.renderable))
+            self.assertIn(app.selected_interface, str(name_card.render()))
 
             # 3. Test changing selection
             other_iface = "Wi-Fi" if app.selected_interface == "Ethernet" else "Ethernet"
@@ -75,7 +79,7 @@ class TestTUIInterfaceTab(unittest.IsolatedAsyncioTestCase):
             app._update_interface_detail_view()
             await pilot.pause()
 
-            self.assertIn(other_iface, str(name_card.renderable))
+            self.assertIn(other_iface, str(name_card.render()))
 
             # 4. Test toggle bits/bytes
             self.assertFalse(app.show_bits)

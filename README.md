@@ -18,6 +18,7 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 * **Per-Interface Monitoring:** Inspect bandwidth, upload/download speeds, and live 2D activity graphs segmented per active network adapter (e.g., Wi-Fi, Ethernet) with automatic loopback filtering.
 * **Historical Analytics:** View your usage trends for the last 24 hours with hourly breakdown, peak hour identification, and traffic statistics including download/upload percentages and average usage.
 * **Crash-Proof Database:** Powered by SQLite with Write-Ahead Logging (WAL) to ensure your data is safe even if your PC loses power.
+* **Automated Data Retention & Downsampling:** Automatically compresses older records into hourly averages (min, max, average speeds) and purges raw records older than the retention threshold (default: 7 days) to prevent database bloat.
 * **Data Cap Monitoring:** Set a data limit (e.g., `10GB`) and see your usage on a real-time progress bar.
 * **Standalone Binaries:** Available as a single .exe or binary file, that way no Python installation is required but no.
 > *Note: Double-clicking the file launches the **Basic Monitor** (all interfaces, no limit). To set Data Caps or Filters, run the file via Command Prompt/Terminal.*
@@ -84,6 +85,10 @@ You can control the monitor with these arguments:
     
     *   Saves all network activity to a specified CSV file (e.g., --log "usage.csv").
         
+*   **`--retention-days RETENTION_DAYS`**
+    
+    *   Sets the retention policy in days for granular 1-second records (default: `7`). Records older than this are rolled up into hourly summaries before purging.
+        
 ---
 
 ### Examples
@@ -92,6 +97,12 @@ You can control the monitor with these arguments:
 
 ```bash
 netwatch -l "10GB"
+```
+
+**Set custom data retention (e.g., 14 days):**
+
+```bash
+netwatch --retention-days 14
 ```
 
 **Monitor a specific interface ("Wi-Fi") and log to a file:**
