@@ -33,6 +33,34 @@ You can customize how Netwatch starts using flags.
     *   Example: netwatch --retention-days 14
         
 
+Examples
+--------
+
+**Start with default settings (all interfaces, 7-day retention):**
+```bash
+netwatch
+```
+
+**Set custom data retention (e.g., 14 days):**
+```bash
+netwatch --retention-days 14
+```
+
+**Set a 10GB data usage cap:**
+```bash
+netwatch -l "10GB"
+```
+
+**Monitor a specific interface and save session log to CSV:**
+```bash
+netwatch -i "Wi-Fi" --log "session.csv"
+```
+
+**Combine options (e.g., 20GB limit, 30-day retention on Wi-Fi):**
+```bash
+netwatch -i "Wi-Fi" -l "20GB" --retention-days 30
+```
+
 TUI Controls & Shortcuts
 ------------------------
 
@@ -102,5 +130,20 @@ Database Retention & Downsampling
 Netwatch automatically optimizes its internal SQLite database to prevent unbounded file growth during 24/7 continuous operation:
 
 *   **Automated Data Retention:** Granular, second-by-second records are retained for a configurable window (default: 7 days, controlled via `--retention-days`).
-*   **Hourly Aggregations (Rollups):** Older records beyond the retention threshold are compressed into hourly summaries (`hourly_summary` table) storing total transfer volume and min/max/average speeds before raw records are purged. Historical totals are preserved seamlessly.
+*   **Hourly Aggregations (Rollups):** Older records beyond the retention threshold are compressed into hourly summaries (`hourly_summary` table) storing total transfer volume and min/max/average speeds before raw records are purged. Lifetime usage totals and trends remain preserved.
 *   **WAL Maintenance:** Passive checkpoints run periodically and truncate checkpoints run on clean exit to keep SQLite WAL files minimal on disk.
+
+### How to use `--retention-days`:
+
+```bash
+# Keep granular 1-second records for 14 days:
+netwatch --retention-days 14
+
+# Minimal storage footprint for lightweight devices (e.g. Raspberry Pi):
+netwatch --retention-days 3
+
+# Extended granular history (e.g. 30 days):
+netwatch --retention-days 30
+```
+
+> **Note:** Data retention pruning runs automatically when Netwatch starts up and operates seamlessly in the background without affecting your lifetime usage statistics.
