@@ -5,7 +5,7 @@ Welcome to the official documentation for **Netwatch**, the advanced CLI network
 
 Netwatch is a Python-based TUI (Text User Interface) application designed to help you track your internet usage, enforce data caps, and analyze traffic trends over time.
 
-![Demo](https://raw.githubusercontent.com/Destroyer795/Netwatchpy-package/main/assets/demo.png)
+![Demo](assets/demo.png)
 
 ## Key Features
 
