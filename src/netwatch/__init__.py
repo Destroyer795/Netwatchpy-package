@@ -2,7 +2,7 @@
 Netwatch - A TUI network usage monitor.
 """
 
-__version__ = "1.5.2"
+__version__ = "1.5.3"
 __author__ = "Pranav Kishan"
 __license__ = "MIT"
 
