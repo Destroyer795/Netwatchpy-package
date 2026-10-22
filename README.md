@@ -14,20 +14,18 @@ A TUI (Text-based User Interface) for monitoring network usage in real-time, wit
 
 ## Features
 
-* **Real-time Dashboard:** A clean, terminal-based dashboard showing total download, upload, and current speeds.
+* **Real-time Dashboard:** A clean, terminal-based dashboard showing total download, upload, total usage, and live combined current speed.
+* **Smart Quota Dashboard & Burn-Rate ETA:** Set data caps (e.g., `-l 10GB`) with a real-time progress bar, remaining balance, and live countdown (ETA) calculated from active burn rate.
 * **Per-Interface Monitoring:** Inspect bandwidth, upload/download speeds, and live 2D activity graphs segmented per active network adapter (e.g., Wi-Fi, Ethernet) with automatic loopback filtering.
+* **Universal Desktop Notifications:** Native alerts across Windows (WinRT Toast with custom icon), macOS (AppleScript Notification Center), and Linux (D-Bus / notify-send) when reaching 80% and 100% data thresholds.
 * **Historical Analytics:** View your usage trends for the last 24 hours with hourly breakdown, peak hour identification, and traffic statistics including download/upload percentages and average usage.
 * **Crash-Proof Database:** Powered by SQLite with Write-Ahead Logging (WAL) to ensure your data is safe even if your PC loses power.
 * **Automated Data Retention & Downsampling:** Automatically compresses older records into hourly averages (min, max, average speeds) and purges raw records older than the retention threshold (default: 7 days) to prevent database bloat.
-* **Data Cap Monitoring:** Set a data limit (e.g., `10GB`) and see your usage on a real-time progress bar.
-* **Standalone Binaries:** Available as a single .exe or binary file, that way no Python installation is required but no.
-> *Note: Double-clicking the file launches the **Basic Monitor** (all interfaces, no limit). To set Data Caps or Filters, run the file via Command Prompt/Terminal.*
 * **Smart Units:** Toggle between Bits (Mbps) and Bytes (MB/s) instantly with Ctrl+B to match ISP speeds or file sizes.
-* **Desktop Notifications:** Get native desktop notifications when you hit 80% and 100% of your data limit.
-* **Live Activity Log:** An interactive, scrolling log of all network activity, updated every second.
+* **Optimized TUI Experience:** Responsive, non-scrolling footer keybindings built for standard 80-column viewports and debounced top-bar status feedback.
 * **Command Palette & Dark Mode:** A modern TUI experience with a built-in command palette (`Ctrl+P`) and dark mode support (`Ctrl+D`).
 * **Auto-Migration:** Automatically detects and imports data from older versions (`quota.json`) so you never lose history.
-* **Cross-Platform:** Runs perfectly on Windows, macOS, and Linux.
+* **Cross-Platform:** Runs seamlessly on Windows, macOS, and Linux.
 
 ---
 
@@ -115,59 +113,63 @@ netwatch -i "Wi-Fi" --log "my_usage.csv"
 
 ### In-App Keybindings
 
-*   **`Ctrl+p`**: Open the Command Palette
-    
-*   **`Ctrl+d`**: Toggle Dark / Light Mode
+*   **`Ctrl+P`**: Open the Command Palette
+*   **`Ctrl+D`**: Toggle Dark / Light Theme
+*   **`Ctrl+B`**: Toggle Unit format between Bits (Mbps) and Bytes (MB/s)
+*   **`R`**: Refresh the 24-hour history chart and analytics
+*   **`Ctrl+R`**: Reset all counters and database records to zero
+*   **`Ctrl+S`**: Show auto-save status (data is continuously auto-saved to SQLite)
+*   **`Ctrl+Q`**: Quit the application safely
 
-*   **`Ctrl+b`**: Toggle Bits/Bytes (Mbps ↔ MB/s)
-
-*   **`r`**: Refresh the history chart
-
-*   **`Ctrl+r`**: Reset all counters and history to zero
-
-*   **`Ctrl+s`**: Show save status (Data is auto-saved)
-
-*   **`Ctrl+q`**: Quit the application
-    
 ---
 
 ### Understanding the Interface
 
-#### 1\. Live Monitor Tab
+#### 1. Live Monitor Tab
 
 This is the default view. It shows:
 
-*   **Summary Cards:** Total Upload, Download, and Combined Usage for the current session + history.
-    
-*   **Quota Bar:** If a limit was set, this bar fills up. It turns **Yellow at 80%** and **Red at 100%**.
-    
-*   **Live Table:** A scrolling list of network speeds recorded every second.
-    
+*   **Summary Cards:** Four live telemetry cards displaying **Total Downloaded**, **Total Uploaded**, **Total Bandwidth** (combining session usage and stored history), and **Current Speed** (live combined upload and download throughput).
+*   **Smart Quota Dashboard & Burn-Rate ETA:** When a data cap is configured (`-l`), a compact 3-row dashboard appears above the activity log:
+    *   **Usage Limit Header:** Displays the target limit (e.g., `Usage Limit: 10.00 GB`).
+    *   **Dynamic Progress Bar:** Real-time visual progress bar tracking data consumption. Automatically shifts color to yellow at 80% and red at 100%.
+    *   **Live Telemetry Badge:** A compact status badge reporting exact remaining data (e.g., `1.2 GB remaining`), percentage consumed (`(88.0%)`), active burn-rate speed (`• 4.5 MB/s`), and dynamic countdown ETA forecaster (`• ETA: 4m 27s`, or `• ETA: Idle` when no active traffic is flowing).
+*   **Live Activity Table:** A scrolling table recording second-by-second download and upload speeds.
 
-#### 2\. Per-Interface Tab
+#### 2. Per-Interface Tab
 
 A split-pane view displaying segmented metrics for each active network interface:
 
-*   **Sidebar (Left):** Selectable list of active interfaces (virtual and loopback connections are filtered out).
+*   **Sidebar (Left):** Selectable list of active interfaces (virtual and loopback connections are automatically filtered out).
 *   **Metrics Cards (Right):** Current download/upload speeds, session totals, and hardware adapter totals for the selected interface.
 *   **Real-time Activity Graph:** An uncluttered 2D waveform chart plotting live traffic trends (`█` = Download, `░` = Upload).
 
-#### 3\. History Tab (24h)
+#### 3. History Tab (24h)
 
 This tab visualizes your traffic over the last 24 hours.
 
-*   **Rows:** Each row represents a 1-hour block of time (e.g., 14:00 covers 2:00 PM to 2:59 PM).
-    
+*   **Traffic Summary:** Displays total upload/download with percentages, peak hour, and average usage per hour.
+*   **Hourly Breakdown:** Each row represents a 1-hour block of time (e.g., 14:00 covers 2:00 PM to 2:59 PM).
 *   **The Bar:**
-    
     *   **Solid Block (█):** Represents Download traffic.
-        
     *   **Shaded Block (░):** Represents Upload traffic.
-        
+*   **Peak Hour:** Marked with a `(PEAK)` tag indicating the hour of highest traffic volume.
 *   **Total:** The text on the right shows the exact data transferred during that hour.
-    
 
-> **Tip:** If the graph looks outdated, press r to pull the latest stats from the database.
+> **Tip:** Press `r` at any time to refresh the history chart with the latest database records.
+
+---
+
+### Desktop Notifications
+
+Netwatch provides native, cross-platform notifications when monitoring data limits:
+
+*   **80% Quota Warning:** Triggered once total traffic reaches 80% of your configured limit.
+*   **100% Quota Exceeded:** Triggered immediately when your limit is reached.
+*   **Platform Integration:**
+    *   **Windows:** Native WinRT Toast notifications with the Netwatch emblem icon embedded in the attribution banner via Windows Shell AppUserModelId registration.
+    *   **macOS:** Native AppleScript (`osascript`) Notification Center alerts.
+    *   **Linux:** Desktop notifications via D-Bus with automatic fallback to `notify-send`.
 
 ---
 

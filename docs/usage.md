@@ -64,36 +64,54 @@ netwatch -i "Wi-Fi" -l "20GB" --retention-days 30
 TUI Controls & Shortcuts
 ------------------------
 
-Once inside the application, use these keyboard shortcuts to control the interface.
+Once inside the application, use these keyboard shortcuts to control the interface. The footer bar is specifically formatted to fit standard 80x24 terminal windows without requiring horizontal scrolling.
+
+*   **Ctrl+p** (Command Palette): Opens the Textual command palette to search and trigger actions.
+
+*   **Ctrl+d** (Theme): Toggles between Dark and Light mode.
+
+*   **Ctrl+b** (Toggle Units): Switch between Bits (Mbps) and Bytes (MB/s) display.
 
 *   **r** (Refresh Chart): Updates the graph in the "History" tab with the latest data.
-    
-*   **Ctrl+b** (Toggle Bits/Bytes): Switch between Bits (Mbps) and Bytes (MB/s) display.
 
 *   **Ctrl+r** (Reset All): Wipes the database and resets all counters to 0. **Use with caution.**
-    
-*   **Ctrl+d** (Dark Mode): Toggles between Light and Dark themes.
-    
-*   **Ctrl+s** (Save Status): Displays a message confirming data is auto-saved.
-    
-*   **Ctrl+q** (Quit): Exits the application safely.
-    
+
+*   **Ctrl+s** (Save Status): Displays a temporary status confirming data is continuously auto-saved.
+
+*   **Ctrl+q** (Quit): Exits the application safely, running WAL truncate checkpoints.
+
 
 Understanding the Interface
 ---------------------------
 
-### 1\. Live Monitor Tab
+### 1. Live Monitor Tab
 
-This is the default view containing real-time stats:
+This is the default view containing real-time telemetry and network accounting:
 
-*   **Summary Cards:** Total Upload, Download, and Combined Usage for the current session + history.
-    
-*   **Quota Bar:** If a limit was set, this bar fills up. It turns **Yellow at 80%** and **Red at 100%**.
-    
-*   **Live Table:** A scrolling list of network speeds recorded every second.
-    
+*   **Summary Cards:** Four real-time cards provide an immediate high-level overview:
+    *   **Total Downloaded:** Total downloaded data across both current session and persistent history.
+    *   **Total Uploaded:** Total uploaded data across both current session and persistent history.
+    *   **Total Bandwidth:** Combined data consumption across all monitored traffic.
+    *   **Current Speed:** Real-time combined throughput (live upload + download speed).
 
-### 2\. Per-Interface Tab
+*   **Smart Quota Dashboard & Burn-Rate ETA:** When a usage limit is configured (e.g., `-l 10GB`), a compact 3-row dashboard appears above the log table:
+    *   **Usage Limit Header:** Displays the configured target limit (e.g., `Usage Limit: 10.00 GB`).
+    *   **Dynamic Progress Bar:** Visual bar showing the exact percentage of your quota consumed.
+    *   **Live Telemetry Badge:** A single-line status badge providing real-time forecasting:
+        *   **Remaining Quota:** Exact data remaining before limit exhaustion (e.g., `1.2 GB remaining`).
+        *   **Percentage Used:** Formatted percentage consumed (e.g., `(88.0%)`).
+        *   **Active Burn Rate:** Live transfer speed at which the quota is being burned (e.g., `• 4.5 MB/s`).
+        *   **Dynamic ETA Forecaster:** Calculates the estimated time remaining until the quota runs out based on your current burn rate (e.g., `• ETA: 4m 27s`). When traffic is stagnant, it displays `• ETA: Idle`. Once exhausted, it indicates `Quota Exceeded`.
+    *   **Visual Warning Tiers:**
+        *   **Normal (< 80%):** Standard accent / primary theme color.
+        *   **Warning (>= 80%):** Transitions to amber/yellow to warn that data cap is approaching.
+        *   **Exceeded (>= 100%):** Transitions to bold red to alert that data cap has been crossed.
+
+*   **Live Activity Table:** A scrolling log recording timestamp, download speed, and upload speed every second.
+
+*   **Debounced Subtitle Feedback:** The header subtitle displays active interface and unit status. When shortcuts are pressed (e.g., unit change, auto-save status, or quota reset), a temporary status notification flashes on the top bar and automatically resets back to the default status after 3 seconds.
+
+### 2. Per-Interface Tab
 
 This tab provides a segmented master-detail view of individual active network interfaces (e.g. Wi-Fi, Ethernet). Virtual and inactive connections (such as loopback) are automatically filtered out.
 
@@ -103,7 +121,7 @@ This tab provides a segmented master-detail view of individual active network in
     
 *   **Real-time Activity Graph:** An uncluttered 2D waveform graph that continuously plots recent traffic patterns for the chosen interface in real time (`█` for Download, `░` for Upload).
 
-### 3\. History Tab (24h)
+### 3. History Tab (24h)
 
 This tab visualizes your traffic over the last 24 hours with detailed analytics.
 
@@ -122,7 +140,19 @@ This tab visualizes your traffic over the last 24 hours with detailed analytics.
 *   **Total:** The text on the far right shows the exact data transferred during that hour.
     
 
-> **Tip:** The graph does not auto-refresh to save resources. Press r whenever you want to see the latest data and statistics.
+> **Tip:** The graph does not auto-refresh to save resources. Press `r` whenever you want to see the latest data and statistics.
+
+Desktop Notifications
+---------------------
+
+Netwatch includes a universal cross-platform notification engine that dispatches native desktop alerts:
+
+*   **80% Warning Notification:** Dispatched once cumulative bandwidth reaches 80% of your configured cap.
+*   **100% Exceeded Notification:** Dispatched immediately upon crossing 100% of your limit.
+*   **Operating System Support:**
+    *   **Windows:** Dispatches native WinRT Toast notifications with the Netwatch talisman icon branded directly into the notification attribution banner via Windows Shell AppUserModelId registration.
+    *   **macOS:** Dispatches native Notification Center banners via AppleScript (`osascript`).
+    *   **Linux:** Dispatches D-Bus desktop notifications with automatic fallback to standard `notify-send`.
 
 Database Retention & Downsampling
 ---------------------------------
