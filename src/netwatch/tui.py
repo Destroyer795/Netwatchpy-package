@@ -18,21 +18,41 @@ from .monitor import NetworkMonitorThread
 from .db import init_db, get_historical_totals, clear_history, get_hourly_usage_last_24h, get_interface_totals, checkpoint_wal
 from .graph import generate_ascii_chart, generate_interface_activity_chart
 
-# Patch HeaderTitle to eliminate default em dash between title and subtitle
-def _custom_header_title_render(self) -> Text:
-    text = Text(self.text, no_wrap=True, overflow="ellipsis")
-    if self.sub_text:
-        text.append(" | ")
-        text.append(self.sub_text, "dim")
-    return text
+# Patch HeaderTitle for legacy Textual versions that format via HeaderTitle.render
+try:
+    if hasattr(HeaderTitle, "text"):
+        def _custom_header_title_render(self) -> Text:
+            text = Text(getattr(self, "text", ""), no_wrap=True, overflow="ellipsis")
+            sub = getattr(self, "sub_text", "")
+            if sub:
+                text.append(" | ")
+                text.append(str(sub), "dim")
+            return text
 
-HeaderTitle.render = _custom_header_title_render
+        HeaderTitle.render = _custom_header_title_render
+except Exception:
+    pass
 
 class NetMonitorTUI(App):
     TITLE = "Network Usage Monitor"
     SUB_TITLE = "Ctrl+P commands | Ctrl+Q quit"
 
     DEFAULT_SUB_TITLE = "Ctrl+P commands | Ctrl+Q quit"
+
+    def format_title(self, title: str, sub_title: str):
+        try:
+            from textual.content import Content
+            title_content = Content(title)
+            sub_title_content = Content(sub_title)
+            if sub_title_content:
+                return Content.assemble(
+                    title_content,
+                    (" | ", "dim"),
+                    sub_title_content.stylize("dim"),
+                )
+            return title_content
+        except Exception:
+            return f"{title} | {sub_title}" if sub_title else title
 
     BINDINGS = [
         ("ctrl+d", "toggle_dark", "Theme"),
