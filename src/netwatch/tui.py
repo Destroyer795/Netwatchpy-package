@@ -9,7 +9,7 @@ from textual.widgets import Header, Footer, DataTable, ProgressBar, Static, Tabb
 from textual.widgets.option_list import Option
 from textual.reactive import var
 from textual.css.query import NoMatches
-from desktop_notifier import DesktopNotifier
+from .notifier import AppNotifier as DesktopNotifier
 
 from .utils import get_size, parse_limit
 from .monitor import NetworkMonitorThread
@@ -18,15 +18,16 @@ from .graph import generate_ascii_chart, generate_interface_activity_chart
 
 class NetMonitorTUI(App):
     TITLE = "Network Usage Monitor"
-    SUB_TITLE = "Press Ctrl+P for commands, Ctrl+Q to quit"
+    SUB_TITLE = "Ctrl+P commands | Ctrl+Q quit"
+
+    DEFAULT_SUB_TITLE = "Ctrl+P commands | Ctrl+Q quit"
 
     BINDINGS = [
-        ("ctrl+p", "command_palette", "Command Palette"),
-        ("ctrl+d", "toggle_dark", "Toggle Dark Mode"),
-        ("ctrl+b", "toggle_bits", "Toggle Bits/Bytes"),  # <--- NEW KEYBINDING
-        ("r", "refresh_chart", "Refresh Chart"),
-        ("ctrl+r", "reset_counters", "Reset Counters"),
-        ("ctrl+s", "save_quota", "Save Status"),
+        ("ctrl+d", "toggle_dark", "Theme"),
+        ("ctrl+b", "toggle_bits", "Unit"),
+        ("r", "refresh_chart", "Refresh"),
+        ("ctrl+r", "reset_counters", "Reset"),
+        ("ctrl+s", "save_quota", "Save"),
         ("ctrl+q", "quit", "Quit"),
     ]
 
@@ -51,7 +52,33 @@ class NetMonitorTUI(App):
             color: #e0e0e0;
         }
 
-        #limit_container { height: auto; padding: 0 1 1 1; }
+        #limit_container { height: auto; padding: 0 1; }
+
+        /* --- Quota Dashboard (compact) --- */
+        #quota_dashboard {
+            height: auto;
+            padding: 0;
+            margin: 0;
+            background: transparent;
+        }
+        .-dark-mode #quota_dashboard {
+            background: transparent;
+        }
+        #quota_dashboard.quota-warning {
+            background: transparent;
+        }
+        .-dark-mode #quota_dashboard.quota-warning {
+            background: transparent;
+        }
+        #quota_dashboard.quota-critical {
+            background: transparent;
+        }
+        .-dark-mode #quota_dashboard.quota-critical {
+            background: transparent;
+        }
+        #quota_info {
+            height: auto;
+        }
         
         #stats_table {
             height: 1fr;
@@ -176,7 +203,7 @@ class NetMonitorTUI(App):
     upload_speed = var(0)
     download_speed = var(0)
     dark = var(False)
-    show_bits = var(False)  # <--- NEW STATE VARIABLE
+    show_bits = var(False, init=False)
 
     def __init__(self, interface="all", limit_str=None, log_file=None, retention_days=7):
         super().__init__()
@@ -191,11 +218,24 @@ class NetMonitorTUI(App):
         
         self.alert_80_sent = False
         self.alert_100_sent = False
+        self._subtitle_timer = None
 
         self.selected_interface = None
         self.interfaces_data = {}
         self.interface_history = {}
         self.known_interfaces = []
+
+    def _flash_subtitle(self, message: str, duration: float = 3.0):
+        """Show a temporary subtitle message that resets after `duration` seconds."""
+        self.sub_title = message
+        if self._subtitle_timer is not None:
+            self._subtitle_timer.stop()
+        self._subtitle_timer = self.set_timer(duration, self._reset_subtitle)
+
+    def _reset_subtitle(self):
+        """Reset subtitle back to default."""
+        self.sub_title = self.DEFAULT_SUB_TITLE
+        self._subtitle_timer = None
 
     def _log_event(self, message: str):
         if self.log_file:
@@ -217,6 +257,26 @@ class NetMonitorTUI(App):
             except Exception as e:
                 self.query_one("#error_box").update(f"ERROR: Failed to write to log file: {e}")
 
+    @staticmethod
+    def _format_duration(total_seconds: float) -> str:
+        """Format seconds into a human-readable countdown string."""
+        if total_seconds < 0 or total_seconds != total_seconds:  # negative or NaN
+            return "--"
+        total_seconds = int(total_seconds)
+        if total_seconds < 60:
+            return f"{total_seconds}s"
+        minutes = total_seconds // 60
+        secs = total_seconds % 60
+        if minutes < 60:
+            return f"{minutes}m {secs:02d}s"
+        hours = minutes // 60
+        mins = minutes % 60
+        if hours < 24:
+            return f"{hours}h {mins:02d}m"
+        days = hours // 24
+        hrs = hours % 24
+        return f"{days}d {hrs:02d}h {mins:02d}m"
+
     def compose(self) -> ComposeResult:
         yield Header()
         
@@ -224,17 +284,17 @@ class NetMonitorTUI(App):
             with TabPane("Live Monitor", id="live_tab"):
                 with VerticalScroll(id="main_container"):
                     with Horizontal(id="summary_cards"):
-                        # Initial labels will be updated by watch methods immediately
                         yield Static("Total Download\n[b]0.00 B[/b]", id="total-dl-card", classes="summary_card")
                         yield Static("Total Upload\n[b]0.00 B[/b]", id="total-ul-card", classes="summary_card")
                         yield Static("Total Usage\n[b]0.00 B[/b]", id="total-usage-card", classes="summary_card")
+                        yield Static("Current Speed\n[b]0.00 B/s[/b]", id="speed-card", classes="summary_card")
 
                     with Container(id="limit_container"):
                         if self.limit_bytes:
-                            # Note: Limits are usually kept in Bytes (GB), but we can toggle this too if desired.
-                            # For now, limits usually stay in Bytes as that's how quotas work.
                             yield Static(f"Usage Limit: {get_size(self.limit_bytes, False)}", id="limit_label")
                             yield ProgressBar(id="limit_bar", total=self.limit_bytes, show_eta=False)
+                            with Container(id="quota_dashboard"):
+                                yield Static("", id="quota_info")
                         else:
                             yield Static("Usage Limit: Not Set")
 
@@ -460,23 +520,65 @@ class NetMonitorTUI(App):
     async def watch_total_usage(self, new_total_usage: int):
         try:
             self.query_one("#total-usage-card").update(f"Total Usage\n[b]{get_size(new_total_usage, self.show_bits)}[/b]")
-            
+
+            # Update the combined speed card
+            current_speed = self.upload_speed + self.download_speed
+            self.query_one("#speed-card").update(f"Current Speed\n[b]{get_size(current_speed, self.show_bits)}/s[/b]")
+
             if self.limit_bytes:
                 bar = self.query_one(ProgressBar)
                 bar.progress = new_total_usage
 
+                # --- Compact Quota Dashboard ---
+                remaining = max(0, self.limit_bytes - new_total_usage)
+                pct = min(100.0, (new_total_usage / self.limit_bytes) * 100) if self.limit_bytes > 0 else 0
+
+                # ETA from live speed
+                if current_speed > 0 and remaining > 0:
+                    eta_str = self._format_duration(remaining / current_speed)
+                elif remaining <= 0:
+                    eta_str = "[red]EXCEEDED[/red]"
+                else:
+                    eta_str = "-- (idle)"
+
+                # Status tag
+                if pct >= 100:
+                    tag = "[red][b]EXCEEDED[/b][/red]"
+                elif pct >= 80:
+                    tag = "[#ff5252][b]WARNING[/b][/#ff5252]"
+                elif pct >= 60:
+                    tag = "[#ffab00][b]CAUTION[/b][/#ffab00]"
+                else:
+                    tag = "[#00c853][b]OK[/b][/#00c853]"
+
+                # Single compact line
+                info = (f"Remaining: [b]{get_size(remaining, self.show_bits)}[/b] ([b]{pct:.1f}%[/b])  |  "
+                        f"Speed: [b]{get_size(current_speed, self.show_bits)}/s[/b]  |  "
+                        f"ETA: [b]{eta_str}[/b]  |  {tag}")
+
+                # Apply CSS class for border/background color tier
+                dashboard = self.query_one("#quota_dashboard")
+                dashboard.remove_class("quota-warning", "quota-critical")
+                if pct >= 80:
+                    dashboard.add_class("quota-critical")
+                elif pct >= 60:
+                    dashboard.add_class("quota-warning")
+
+                self.query_one("#quota_info").update(info)
+
+                # Progress bar color
                 if not self.alert_80_sent and not self.alert_100_sent:
                     bar.styles.color = "#00c853" if not self.dark else "#64dd17"
 
                 if new_total_usage >= 0.8 * self.limit_bytes and not self.alert_80_sent:
                     self.alert_80_sent = True
                     bar.styles.color = "yellow"
-                    self.sub_title = "⚠️ 80% of limit reached!"
+                    self._flash_subtitle("[!] 80% of limit reached!")
                     self._log_event("80% of data limit reached.")
                     try:
                         await self.notifier.send(
                             title="Netwatch: 80% Usage Warning",
-                            message=f"You have used {get_size(new_total_usage, False)}." # Keep notifications in Bytes usually
+                            message=f"You have used {get_size(new_total_usage, False)}.",
                         )
                     except Exception as e:
                         self._log_error(f"Failed to send 80% notification: {e}")
@@ -484,26 +586,22 @@ class NetMonitorTUI(App):
                 if new_total_usage >= self.limit_bytes and not self.alert_100_sent:
                     self.alert_100_sent = True
                     bar.styles.color = "red"
-                    self.sub_title = "🚨 Data limit exceeded!"
+                    self._flash_subtitle("[!!] Data limit exceeded!")
                     self._log_event("100% of data limit reached.")
                     try:
                         await self.notifier.send(
                             title="Netwatch: Data Limit Exceeded!",
-                            message=f"You have exceeded your {get_size(self.limit_bytes, False)} data limit."
+                            message=f"You have exceeded your {get_size(self.limit_bytes, False)} data limit.",
                         )
                     except Exception as e:
                         self._log_error(f"Failed to send 100% notification: {e}")
         except NoMatches:
             pass
 
-    # --- NEW WATCHER FOR BITS TOGGLE ---
     def watch_show_bits(self, new_val):
         """When show_bits toggles, force update the summary cards immediately."""
-        # We manually trigger the updates using current values
         self.watch_total_download(self.total_download)
         self.watch_total_upload(self.total_upload)
-        # Note: The table will update rows from *now on*, but old rows remain as they were.
-        # If you want to update the limit label too:
         if self.limit_bytes:
             try:
                 self.query_one("#limit_label").update(f"Usage Limit: {get_size(self.limit_bytes, new_val)}")
@@ -512,7 +610,7 @@ class NetMonitorTUI(App):
         
         self._update_interface_detail_view()
         unit = "Bits (Mb)" if new_val else "Bytes (MB)"
-        self.sub_title = f"Switched to {unit}"
+        self._flash_subtitle(f"Switched to {unit}")
 
     def on_tabbed_content_tab_activated(self, event):
         if event.tab.id == "history_tab":
@@ -535,14 +633,14 @@ class NetMonitorTUI(App):
                 pass
 
     def action_refresh_chart(self):
-        self.sub_title = "Refreshing chart data..."
+        self._flash_subtitle("Chart refreshed")
         self.refresh_chart()
         self._update_interface_detail_view()
 
     def action_toggle_dark(self):
         self.dark = not self.dark
         self.set_class(self.dark, "-dark-mode")
-        self.sub_title = "🌙 Dark Mode" if self.dark else "☀️ Light Mode"
+        self._flash_subtitle("Dark Mode" if self.dark else "Light Mode")
 
     def action_toggle_bits(self):
         """Toggle between Bytes (MB) and Bits (Mb)."""
@@ -561,7 +659,7 @@ class NetMonitorTUI(App):
         self.total_usage = 0
         self.interface_history = {}
         self.interfaces_data = {}
-        self.sub_title = "History Cleared"
+        self._flash_subtitle("History Cleared")
         self.alert_80_sent = False
         self.alert_100_sent = False
         
@@ -584,7 +682,7 @@ class NetMonitorTUI(App):
         self.monitor_thread.start()
 
     def action_save_quota(self) -> None:
-        self.sub_title = "✅ Data is auto-saved to SQLite"
+        self._flash_subtitle("Data is auto-saved to SQLite")
 
 def main():
     parser = argparse.ArgumentParser(
