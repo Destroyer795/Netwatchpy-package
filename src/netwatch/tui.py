@@ -105,22 +105,36 @@ class NetMonitorTUI(App):
 
         Tab {
             color: #555555;
+            background: transparent;
         }
         Tab:hover {
             color: #111111;
         }
-        Tab.-active {
+        Tab.-active,
+        Tabs:focus .-active,
+        Tabs:focus Tab.-active,
+        Tabs:focus ContentTab.-active,
+        Tab:focus,
+        ContentTab:focus {
             color: #004578;
+            background: transparent;
             text-style: bold;
         }
         .-dark-mode Tab {
             color: #888888;
+            background: transparent;
         }
         .-dark-mode Tab:hover {
             color: #ffffff;
         }
-        .-dark-mode Tab.-active {
+        .-dark-mode Tab.-active,
+        .-dark-mode Tabs:focus .-active,
+        .-dark-mode Tabs:focus Tab.-active,
+        .-dark-mode Tabs:focus ContentTab.-active,
+        .-dark-mode Tab:focus,
+        .-dark-mode ContentTab:focus {
             color: #55aaff;
+            background: transparent;
             text-style: bold;
         }
 
@@ -452,6 +466,9 @@ class NetMonitorTUI(App):
         yield Footer()
 
     def on_mount(self):
+        for tabs in self.query("Tabs"):
+            tabs.can_focus = False
+
         if self.log_file and os.path.exists(self.log_file):
             self._log_event("SESSION STARTED")
 
