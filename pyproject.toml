@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netwatchpy"
-version = "1.4.0"
+version = "1.5.0"
 authors = [
     { name = "Pranav Kishan", email = "ty.pranavkishan7905@gmail.com" }
 ]
@@ -45,6 +45,9 @@ netwatch = "netwatch.tui:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["netwatch"]
+
+[tool.setuptools.package-data]
+netwatch = ["resources/*.png", "resources/*.ico"]
 
 [project.urls]
 Documentation = "https://destroyer795.github.io/Netwatchpy-package"

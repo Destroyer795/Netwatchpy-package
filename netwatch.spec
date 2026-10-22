@@ -10,6 +10,7 @@ datas += copy_metadata('netwatchpy')
 datas += copy_metadata('desktop_notifier')
 # This collects the icons/assets for notifications
 datas += collect_data_files('desktop_notifier')
+datas += [('src/netwatch/resources', 'netwatch/resources')]
 
 # DEFINE HIDDEN IMPORTS
 hidden_imports = [
