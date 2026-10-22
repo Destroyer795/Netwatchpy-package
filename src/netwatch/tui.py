@@ -6,15 +6,27 @@ from textwrap import dedent
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll, Horizontal, Container
 from textual.widgets import Header, Footer, DataTable, ProgressBar, Static, TabbedContent, TabPane, OptionList
+from textual.widgets._header import HeaderTitle
 from textual.widgets.option_list import Option
 from textual.reactive import var
 from textual.css.query import NoMatches
+from rich.text import Text
 from .notifier import AppNotifier as DesktopNotifier
 
 from .utils import get_size, parse_limit
 from .monitor import NetworkMonitorThread
 from .db import init_db, get_historical_totals, clear_history, get_hourly_usage_last_24h, get_interface_totals, checkpoint_wal
 from .graph import generate_ascii_chart, generate_interface_activity_chart
+
+# Patch HeaderTitle to eliminate default em dash between title and subtitle
+def _custom_header_title_render(self) -> Text:
+    text = Text(self.text, no_wrap=True, overflow="ellipsis")
+    if self.sub_text:
+        text.append(" | ")
+        text.append(self.sub_text, "dim")
+    return text
+
+HeaderTitle.render = _custom_header_title_render
 
 class NetMonitorTUI(App):
     TITLE = "Network Usage Monitor"
@@ -32,8 +44,65 @@ class NetMonitorTUI(App):
     ]
 
     CSS = dedent("""
-        Screen { background: #f8f8f8; color: black; }
-        .-dark-mode Screen { background: #101010; color: #f0f0f0; }
+        Screen {
+            background: #f8f8f8;
+            color: #111111;
+            scrollbar-color: #7994a9;
+            scrollbar-background: #cacaca;
+        }
+        .-dark-mode Screen {
+            background: #101010;
+            color: #f0f0f0;
+            scrollbar-color: #555555;
+            scrollbar-background: #181818;
+        }
+
+        Header {
+            background: #d8d8d8;
+            color: #111111;
+        }
+        .-dark-mode Header {
+            background: #242f38;
+            color: #e0e0e0;
+        }
+
+        Footer {
+            background: #d8d8d8;
+            color: #111111;
+        }
+        .-dark-mode Footer {
+            background: #242f38;
+            color: #e0e0e0;
+        }
+
+        /* --- Navbar / Tabs (3 sections) --- */
+        Tabs {
+            background: #e4e4e4;
+        }
+        .-dark-mode Tabs {
+            background: #181818;
+        }
+
+        Tab {
+            color: #555555;
+        }
+        Tab:hover {
+            color: #111111;
+        }
+        Tab.-active {
+            color: #004578;
+            text-style: bold;
+        }
+        .-dark-mode Tab {
+            color: #888888;
+        }
+        .-dark-mode Tab:hover {
+            color: #ffffff;
+        }
+        .-dark-mode Tab.-active {
+            color: #55aaff;
+            text-style: bold;
+        }
 
         #main_container { layout: vertical; }
         #summary_cards { layout: horizontal; height: auto; padding: 1 0; }
@@ -41,13 +110,14 @@ class NetMonitorTUI(App):
         .summary_card {
             width: 1fr;
             min-height: 5;
-            border: solid black;
+            border: solid #888888;
             padding: 1;
             margin: 0 1;
             background: #e8e8e8;
+            color: #111111;
         }
         .-dark-mode .summary_card {
-            border: solid #888;
+            border: solid #666;
             background: #222;
             color: #e0e0e0;
         }
@@ -83,16 +153,27 @@ class NetMonitorTUI(App):
         #stats_table {
             height: 1fr;
             margin: 0 1;
-            border: solid black;
-            background: white;
-            color: black;
+            border: solid #888888;
+            background: #ffffff;
+            color: #111111;
         }
         .-dark-mode #stats_table {
             border: solid #666;
             background: #222;
             color: #e0e0e0;
         }
-        
+
+        #stats_table > .datatable--header {
+            background: #d0d0d0;
+            color: #111111;
+            text-style: bold;
+        }
+        .-dark-mode #stats_table > .datatable--header {
+            background: #333333;
+            color: #f0f0f0;
+            text-style: bold;
+        }
+
         ProgressBar { background: #e8e8e8; }
         .-dark-mode ProgressBar { background: #222; }
 
@@ -128,9 +209,9 @@ class NetMonitorTUI(App):
             min-width: 25;
             max-width: 38;
             height: 1fr;
-            border-right: solid black;
+            border-right: solid #888888;
             padding: 1;
-            background: #f0f0f0;
+            background: #eeeeee;
         }
         .-dark-mode #interfaces_sidebar {
             border-right: solid #666;
@@ -140,7 +221,7 @@ class NetMonitorTUI(App):
         #iface_sidebar_title {
             text-align: center;
             text-style: bold;
-            color: #007acc;
+            color: #005a9e;
             margin-bottom: 1;
         }
         .-dark-mode #iface_sidebar_title {
@@ -151,6 +232,26 @@ class NetMonitorTUI(App):
             height: 1fr;
             background: transparent;
             border: none;
+            color: #111111;
+        }
+        .-dark-mode #iface_option_list {
+            color: #e0e0e0;
+        }
+        #iface_option_list > .option-list--option {
+            color: #111111;
+        }
+        .-dark-mode #iface_option_list > .option-list--option {
+            color: #e0e0e0;
+        }
+        #iface_option_list > .option-list--option-highlighted {
+            background: #007acc;
+            color: white;
+            text-style: bold;
+        }
+        .-dark-mode #iface_option_list > .option-list--option-highlighted {
+            background: #005a9e;
+            color: white;
+            text-style: bold;
         }
 
         #interface_detail_pane {
@@ -169,8 +270,9 @@ class NetMonitorTUI(App):
             height: auto;
             padding: 1 2;
             margin: 0 1 1 1;
-            border: solid black;
+            border: solid #888888;
             background: #e8e8e8;
+            color: #111111;
         }
         .-dark-mode #iface_totals_card {
             border: solid #888;
@@ -180,7 +282,7 @@ class NetMonitorTUI(App):
 
         #iface_graph_container {
             height: auto;
-            border: solid black;
+            border: solid #888888;
             padding: 1 2;
             margin: 0 1;
             background: white;
@@ -202,8 +304,15 @@ class NetMonitorTUI(App):
     total_usage = var(0)
     upload_speed = var(0)
     download_speed = var(0)
-    dark = var(False)
     show_bits = var(False, init=False)
+
+    @property
+    def is_dark(self) -> bool:
+        return self.current_theme.dark if self.current_theme else True
+
+    @property
+    def dark(self) -> bool:
+        return self.is_dark
 
     def __init__(self, interface="all", limit_str=None, log_file=None, retention_days=7):
         super().__init__()
@@ -261,7 +370,7 @@ class NetMonitorTUI(App):
     def _format_duration(total_seconds: float) -> str:
         """Format seconds into a human-readable countdown string."""
         if total_seconds < 0 or total_seconds != total_seconds:  # negative or NaN
-            return "--"
+            return "0s"
         total_seconds = int(total_seconds)
         if total_seconds < 60:
             return f"{total_seconds}s"
@@ -539,7 +648,7 @@ class NetMonitorTUI(App):
                 elif remaining <= 0:
                     eta_str = "[red]EXCEEDED[/red]"
                 else:
-                    eta_str = "-- (idle)"
+                    eta_str = "Idle"
 
                 # Status tag
                 if pct >= 100:
@@ -638,9 +747,8 @@ class NetMonitorTUI(App):
         self._update_interface_detail_view()
 
     def action_toggle_dark(self):
-        self.dark = not self.dark
-        self.set_class(self.dark, "-dark-mode")
-        self._flash_subtitle("Dark Mode" if self.dark else "Light Mode")
+        self.theme = "textual-light" if self.current_theme.dark else "textual-dark"
+        self._flash_subtitle("Dark Mode" if self.current_theme.dark else "Light Mode")
 
     def action_toggle_bits(self):
         """Toggle between Bytes (MB) and Bits (Mb)."""

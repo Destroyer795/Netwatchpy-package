@@ -87,9 +87,11 @@ class TestTUIInterfaceTab(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(app.show_bits)
 
             # 5. Test toggle dark mode
-            self.assertFalse(app.dark)
+            initial_dark = app.dark
             await pilot.press("ctrl+d")
-            self.assertTrue(app.dark)
+            self.assertEqual(app.dark, not initial_dark)
+            await pilot.press("ctrl+d")
+            self.assertEqual(app.dark, initial_dark)
 
             # 6. Test reset counters
             await pilot.press("ctrl+r")
