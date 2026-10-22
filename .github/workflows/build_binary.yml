@@ -2,7 +2,8 @@ name: Build and Upload Binaries
 
 on:
   release:
-    types: [created]
+    types: [created, published]
+  workflow_dispatch:
 
 permissions:
   contents: write 
